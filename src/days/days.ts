@@ -35,6 +35,8 @@ const writeAll = byId<HTMLButtonElement>('write-all');
 const debug = byId<HTMLDetailsElement>('debug');
 const debugText = byId<HTMLPreElement>('debug-text');
 let plannedDays: PlannedDay[] = [];
+/** Days written and checked since the preview was loaded. */
+const writtenDates = new Set<string>();
 /** When HRworks was last read for the preview, as an ISO time. */
 let previewReadAt = '';
 
@@ -268,6 +270,7 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
       });
       if (result.ok) {
         written++;
+        writtenDates.add(attempt.date);
         const note = removed.length > 0 ? ` (removed ${removed.length} open entries)` : '';
         showInCell(attempt.date, `Written and checked${note}`, 'ok');
       } else {
@@ -282,6 +285,7 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
   }
   writing = false;
   setWriteButtons(false);
+  updateWriteAll();
   await showDebugLog();
   if (days.length > 1) {
     showStatus(
@@ -294,7 +298,18 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
   }
 }
 
-writeAll.addEventListener('click', () => void writeWithConfirm(plannedDays.filter(isWritable)));
+/** The days still to write. "Write all" only shows when there are at least two. */
+function remainingDays(): WritableDay[] {
+  return plannedDays.filter(isWritable).filter((day) => !writtenDates.has(day.harvest.date));
+}
+
+function updateWriteAll(): void {
+  const count = remainingDays().length;
+  writeAll.textContent = `Write all ${count} days`;
+  writeAll.hidden = count < 2;
+}
+
+writeAll.addEventListener('click', () => void writeWithConfirm(remainingDays()));
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -312,6 +327,7 @@ form.addEventListener('submit', async (event) => {
   submit.disabled = true;
   writeAll.hidden = true;
   plannedDays = [];
+  writtenDates.clear();
   actionCells.clear();
   showStatus('Loading from Harvest…');
   try {
@@ -339,9 +355,7 @@ form.addEventListener('submit', async (event) => {
     });
     plannedDays = planned;
     renderRows(rows, planned);
-    const writable = planned.filter(isWritable).length;
-    writeAll.textContent = `Write all ${writable} days`;
-    writeAll.hidden = writable < 2;
+    updateWriteAll();
     const counts = countActions(planned);
     showStatus(
       `${counts.create} to create, ${counts.override} to override, ${counts.skip} already match, ` +
