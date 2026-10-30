@@ -79,11 +79,19 @@ describe('planDays with Harvest hours', () => {
       ],
       creditedMinutes: 480,
     });
-    const open = hrworks({ entries: [{ start: '07:00', end: '' }], creditedMinutes: 0 });
     const unreadable = hrworks({ entries: [{ start: '07:00', end: '16:00' }] });
-    for (const day of [several, open, unreadable]) {
+    for (const day of [several, unreadable]) {
       expect(plan(harvest(), day, 'override')?.action).toBe('flag');
     }
+  });
+
+  it('overrides an open entry only in override mode', () => {
+    const open = hrworks({ entries: [{ start: '07:00', end: '' }], creditedMinutes: 0 });
+    expect(plan(harvest(), open)).toMatchObject({ action: 'flag', reason: /open entry/ });
+    expect(plan(harvest(), open, 'override')).toMatchObject({
+      action: 'override',
+      previous: [{ start: '07:00', end: '' }],
+    });
   });
 
   it('flags an absence on a day with Harvest hours', () => {

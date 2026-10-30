@@ -116,9 +116,26 @@ describe('writeDay override', () => {
     expect(hrworks.saves).toBe(1);
   });
 
-  it('refuses an open entry or a day without entries', async () => {
+  it('replaces an open entry', async () => {
     const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
-    expect(await writeDay(document, open, fast)).toMatchObject({ ok: false, saved: false });
+    expect(await writeDay(document, open, fast)).toMatchObject({
+      ok: true,
+      day: { entries: [{ start: '08:00', end: '17:00' }] },
+    });
+  });
+
+  it('replaces an entry added with "+" but never saved', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-06');
+    if (day) {
+      day.status = ['20:26 Uhr', 'Offene Arbeitszeit'];
+      day.editing = { start: '20:26', end: '' };
+    }
+    hrworks.render();
+    const unsaved = { ...override, date: '2026-07-06', previous: [{ start: '20:26', end: '' }] };
+    expect(await writeDay(document, unsaved, fast)).toMatchObject({ ok: true });
+  });
+
+  it('refuses a day without entries', async () => {
     const empty = { ...override, date: '2026-07-06', previous: [] };
     expect(await writeDay(document, empty, fast)).toMatchObject({ ok: false, saved: false });
     expect(hrworks.saves).toBe(0);

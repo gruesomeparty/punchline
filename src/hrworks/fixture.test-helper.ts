@@ -56,10 +56,12 @@ function entryHtml(entry: { start: string; end: string }): string {
   </div></div></div>`;
 }
 
-/** The saved entry of a day, if its status shows a start and an end. */
+/** The saved entry of a day, if its status shows a start, and an end unless it is open. */
 function savedEntry(day: FakeDay): { start: string; end: string } | null {
   const [start, end] = (day.status ?? []).map((text) => /^(\d{2}:\d{2}) Uhr$/.exec(text)?.[1]);
-  return start && end ? { start, end } : null;
+  if (!start) return null;
+  if (end) return { start, end };
+  return day.status?.[1] === 'Offene Arbeitszeit' && !day.editing ? { start, end: '' } : null;
 }
 
 // Like HRworks, the ⓘ details show saved entries as editable inputs too.

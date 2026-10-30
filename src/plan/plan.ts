@@ -76,6 +76,10 @@ function decide(
     return { action: 'flag', reason: 'HRworks has several entries on this day' };
   }
   if (hrworks.entries.some((entry) => !entry.end)) {
+    // An open entry has no hours to compare, so Override simply replaces it.
+    if (mode === 'override' && !offPlan) {
+      return { action: 'override', times, previous: hrworks.entries };
+    }
     return { action: 'flag', reason: 'HRworks has an open entry on this day' };
   }
   if (hrworks.creditedMinutes === null) {

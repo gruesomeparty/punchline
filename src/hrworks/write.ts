@@ -168,9 +168,9 @@ async function openSavedEntry(
     );
   }
   const [entry] = previous;
-  if (previous.length !== 1 || !entry?.end) {
+  if (previous.length !== 1 || !entry) {
     throw new HrworksReadError(
-      `punchline only overrides a day with one finished entry. Change ${date} in HRworks.`,
+      `punchline only overrides a day with one entry. Change ${date} in HRworks.`,
     );
   }
   if ((!header.workday && !day.dayOff) || header.absence) {
@@ -180,8 +180,9 @@ async function openSavedEntry(
   if (entryInputs(row).length > 1) {
     throw new HrworksReadError(`${date} already has an unsaved entry open in HRworks.`);
   }
-  // Reading the credited hours opens the details, which hold the saved entry's inputs.
-  await session.openCredited(date);
+  // Reading the credited hours opens the details, which hold the saved entry's inputs. An open
+  // entry that was just added with "+" already shows its inputs.
+  if (entryInputs(row).length === 0) await session.openCredited(date);
   const inputs = await waitForOneEntry(doc, session, date, `show the entry on ${date}`);
   if (inputs.start.value !== entry.start || inputs.end.value !== entry.end) {
     throw new HrworksReadError(
