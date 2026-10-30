@@ -78,11 +78,12 @@ async function readHrworks(from: string, to: string): Promise<HrworksDay[] | str
 
 let writing = false;
 
-/** A "Write" button for days that would be created. Overrides come later. */
+/** A "Write" button for days to create, an "Override" button for days to change. */
 function writeCell(day: PlannedDay | undefined): HTMLTableCellElement {
   const cell = el('td');
-  if (day?.action !== 'create') return cell;
-  const button = el('button', 'Write', 'secondary write');
+  if (day?.action !== 'create' && day?.action !== 'override') return cell;
+  const label = day.action === 'create' ? 'Write' : 'Override';
+  const button = el('button', label, 'secondary write');
   button.type = 'button';
   button.addEventListener('click', () => void writeOne(day, cell));
   cell.append(button);
@@ -90,7 +91,7 @@ function writeCell(day: PlannedDay | undefined): HTMLTableCellElement {
 }
 
 async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<void> {
-  if (writing || day.action !== 'create') return;
+  if (writing || (day.action !== 'create' && day.action !== 'override')) return;
   const { date } = day.harvest;
   const { start, end } = day.times;
   const earlier = wasWritten(await loadWriteLog(), date);
@@ -99,7 +100,14 @@ async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<vo
     return;
   }
   const net = formatDuration(day.harvest.netMinutes);
-  if (!confirm(`Enter ${start}–${end} (${net} after breaks) on ${date} in HRworks?`)) return;
+  const previous = day.action === 'override' ? day.previous : [];
+  const old = previous.map((entry) => `${entry.start}–${entry.end}`).join(', ');
+  const question =
+    day.action === 'override'
+      ? `Replace ${old} with ${start}–${end} (${net} after breaks) on ${date} in HRworks? ` +
+        'HRworks has no undo; punchline logs the old times first.'
+      : `Enter ${start}–${end} (${net} after breaks) on ${date} in HRworks?`;
+  if (!confirm(question)) return;
 
   writing = true;
   for (const button of document.querySelectorAll<HTMLButtonElement>('button.write')) {
@@ -108,18 +116,28 @@ async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<vo
   cell.replaceChildren(el('span', 'Writing…', 'muted'));
   const request: WriteDayRequest = {
     type: 'punchline/write-day',
-    day: { date, start, end, expectedMinutes: day.harvest.netMinutes },
+    day: {
+      date,
+      start,
+      end,
+      expectedMinutes: day.harvest.netMinutes,
+      ...(day.action === 'override' ? { previous } : {}),
+    },
   };
+  // Logged before anything is sent, so the old times survive even if the tab closes mid-save.
+  const attempt = { date, action: day.action, start, end, previous };
+  await appendWriteLog({
+    ...attempt,
+    at: new Date().toISOString(),
+    result: 'unknown',
+    message: 'Started, no result yet.',
+  });
   const response = await sendToHrworks<WriteDayResponse>(request);
   const result =
     typeof response === 'string' ? { ok: false as const, error: response, saved: false } : response;
   await appendWriteLog({
+    ...attempt,
     at: new Date().toISOString(),
-    date,
-    action: 'create',
-    start,
-    end,
-    previous: [],
     result: result.ok ? 'ok' : result.saved ? 'unknown' : 'failed',
     message: result.ok ? '' : result.error,
   });
