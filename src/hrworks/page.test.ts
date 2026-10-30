@@ -1,127 +1,17 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type FakeWeek, pageHtml, showPage } from './fixture.test-helper.ts';
+import { FakeHrworks } from './fixture.test-helper.ts';
 import {
   dayHeaderTexts,
   dayRows,
-  GUIDE,
   HrworksReadError,
   readCredited,
   readHrworksDays,
   readSelectedMonth,
   readWeeks,
 } from './page.ts';
-import { MONTH_NAMES } from './parse.ts';
 
 const fast = { timeoutMs: 1000, pauseMs: 0 };
-
-/** Two made-up months that behave like HRworks: weeks and details load on click. */
-function months(): Map<string, FakeWeek[]> {
-  return new Map([
-    [
-      '2026-06',
-      [
-        {
-          title: 'KW 27 (29.06. - 30.06.)',
-          open: false,
-          days: [
-            { date: '2026-06-29', status: ['08:00 Uhr', '17:00 Uhr'], credited: '8:30' },
-            { date: '2026-06-30', status: ['Keine Arbeitszeit erfasst', ''] },
-          ],
-        },
-      ],
-    ],
-    [
-      '2026-07',
-      [
-        {
-          title: 'KW 27 (01.07. - 05.07.)',
-          open: true,
-          days: [
-            { date: '2026-07-01', status: ['08:00 Uhr', '18:00 Uhr'], credited: '9:00' },
-            { date: '2026-07-02', label: 'Jahresurlaub' },
-            { date: '2026-07-03', status: ['07:15 Uhr', 'Offene Arbeitszeit'], credited: '0:00' },
-            { date: '2026-07-04', label: 'Kein Arbeitstag nach Arbeitsplan' },
-            { date: '2026-07-05', label: 'Kein Arbeitstag nach Arbeitsplan' },
-          ],
-        },
-        {
-          title: 'KW 28 (06.07. - 12.07.)',
-          open: false,
-          days: [{ date: '2026-07-06', status: ['Keine Arbeitszeit erfasst', ''] }],
-        },
-      ],
-    ],
-  ]);
-}
-
-class FakeHrworks {
-  data = months();
-  year = 2026;
-  month = 7;
-  clicks = 0;
-  /** How many week clicks to ignore, like HRworks sometimes does. */
-  ignoreWeekClicks = 0;
-
-  constructor() {
-    this.render();
-    document.addEventListener('change', this.onChange);
-    document.addEventListener('click', this.onClick);
-  }
-
-  stop(): void {
-    document.removeEventListener('change', this.onChange);
-    document.removeEventListener('click', this.onClick);
-  }
-
-  weeks(): FakeWeek[] {
-    return this.data.get(`${this.year}-${String(this.month).padStart(2, '0')}`) ?? [];
-  }
-
-  render(): void {
-    showPage(document.body, pageHtml(this.year, this.month, this.weeks()));
-  }
-
-  // HRworks answers through the server, so changes show up a little later.
-  later(change: () => void): void {
-    setTimeout(() => {
-      change();
-      this.render();
-    }, 20);
-  }
-
-  onChange = (event: Event): void => {
-    const select = event.target as HTMLSelectElement;
-    const label = select.options[select.selectedIndex]?.textContent ?? '';
-    this.later(() => {
-      if (MONTH_NAMES.includes(label)) this.month = MONTH_NAMES.indexOf(label) + 1;
-      else this.year = Number(label);
-    });
-  };
-
-  onClick = (event: Event): void => {
-    const target = (event.target as Element).closest('[data-guide-id]');
-    const guide = target?.getAttribute('data-guide-id');
-    this.clicks++;
-    if (guide === GUIDE.weekHead && this.ignoreWeekClicks > 0) {
-      this.ignoreWeekClicks--;
-    } else if (guide === GUIDE.weekHead) {
-      const title = target?.querySelector('.m-accordion__item-title')?.textContent?.trim();
-      this.later(() => {
-        for (const week of this.weeks()) week.open = week.title === title;
-      });
-    } else if (guide === GUIDE.infoButton) {
-      const row = target?.closest(`[data-guide-id="${GUIDE.dayRow}"]`);
-      const label = row ? dayHeaderTexts(row).day : '';
-      this.later(() => {
-        for (const day of this.weeks().flatMap((week) => week.days)) {
-          const [y, m, d] = day.date.split('-');
-          if (label.endsWith(`${d}.${m}.${y?.slice(2)}`)) day.detailsOpen = true;
-        }
-      });
-    }
-  };
-}
 
 let hrworks: FakeHrworks;
 beforeEach(() => {

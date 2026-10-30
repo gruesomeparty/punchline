@@ -1,8 +1,10 @@
 // Synthetic HRworks markup for tests. It copies the structure the page reader relies on
 // (class names, data-guide-id attributes, nesting) and nothing else. All data is made up.
 
-import { GUIDE } from './page.ts';
+import { formatDuration, parseTime } from '../lib/time.ts';
+import { dayHeaderTexts, GUIDE } from './page.ts';
 import { MONTH_NAMES } from './parse.ts';
+import { WRITE_GUIDE } from './write.ts';
 
 export type FakeDay = {
   /** ISO date. */
@@ -15,6 +17,10 @@ export type FakeDay = {
   credited?: string;
   /** Whether the ⓘ details are already open. */
   detailsOpen?: boolean;
+  /** A new, unsaved entry opened with "+", with the values in its inputs. */
+  editing?: { start: string; end: string };
+  /** HRworks disables "+" on days without a work plan. */
+  addDisabled?: boolean;
 };
 
 export type FakeWeek = { title: string; open: boolean; days: FakeDay[] };
@@ -27,16 +33,31 @@ function dayLabel(date: string): string {
   return `${weekday},&nbsp;${d}.${m}.${y?.slice(2)}`;
 }
 
-function details(day: FakeDay): string {
+function infoPanel(day: FakeDay): string {
   if (!day.detailsOpen) {
-    return `<div class="row bs-hide"><div class="col-12"><div class="alert-info alert bs-hide" data-guide-id="${GUIDE.details}"></div></div></div>`;
+    return `<div class="col-12"><div class="alert-info alert bs-hide" data-guide-id="${GUIDE.details}"></div></div>`;
   }
-  return `<div class="row"><div class="col-12"><div class="alert-info alert" data-guide-id="${GUIDE.details}"><div class="row col-12"><div class="col-md-6 col-12">
+  return `<div class="col-12"><div class="alert-info alert" data-guide-id="${GUIDE.details}"><div class="row col-12"><div class="col-md-6 col-12">
     <span class="m--font-boldest">Sollarbeitsstunden: </span> <span>8:24</span><div class="me-break"></div>
     <span class="m--font-boldest">Pausendauer:</span> <span>0:30</span>
     <div>0:00 (manuell erfasst)</div><div>0:30 (automatische Pausen aus Pausenregelungen)</div>
     <span class="m--font-boldest">Gutgeschriebene Arbeitsstunden:</span> <span>${day.credited ?? ''}</span>
-  </div></div></div></div></div>`;
+  </div></div></div></div>`;
+}
+
+// The real page fills the inputs from script; the fake uses value attributes instead.
+function entryHtml(entry: { start: string; end: string }): string {
+  const field = (guide: string, value: string) =>
+    `<div class="form-group" data-guide-id="${guide}"><div class="input-group"><input class="form-control" type="text" value="${value}"></div></div>`;
+  return `<div class="row" data-guide-id="${WRITE_GUIDE.entry}"><div class="col-10"><div class="row">
+    ${field(WRITE_GUIDE.start, entry.start)}${field(WRITE_GUIDE.end, entry.end)}
+  </div></div></div>`;
+}
+
+function details(day: FakeDay): string {
+  const open = day.detailsOpen || day.editing;
+  return `<div class="row${open ? '' : ' bs-hide'}">${infoPanel(day)}
+    <div class="col-12">${day.editing ? entryHtml(day.editing) : ''}</div></div>`;
 }
 
 export function dayHtml(day: FakeDay): string {
@@ -56,7 +77,7 @@ export function dayHtml(day: FakeDay): string {
       </div></div>
       <div class="col-12">
         <a href="javascript:;" class="btn" data-guide-id="${GUIDE.infoButton}"><i class="icon-streamline-information-circle"></i><span></span></a>
-        <a href="javascript:;" class="btn"><i class="icon-streamline-add"></i><span></span></a>
+        <a href="javascript:;" class="btn${day.addDisabled ? ' disabled' : ''}"><i class="icon-streamline-add"></i><span></span></a>
       </div>
     </div>
     ${details(day)}
@@ -96,6 +117,7 @@ export function pageHtml(year: number, month: number, weeks: FakeWeek[]): string
         <select class="form-control">${options(years, String(year))}</select></div>
     </div>
     <div class="m-accordion">${[...weeks].reverse().map(weekHtml).join('')}</div>
+    <button type="button" data-guide-id="${WRITE_GUIDE.save}"><span> Speichern</span></button>
   </form>`;
 }
 
@@ -108,4 +130,156 @@ export function showPage(root: HTMLElement, html: string): void {
   for (const option of root.querySelectorAll('option[selected]')) {
     (option as HTMLOptionElement).selected = true;
   }
+}
+
+/** HRworks' breaks as observed: 30 minutes from 7 hours, 60 from 9 hours. */
+function creditFor(start: string, end: string): number {
+  const gross = (parseTime(end) ?? 0) - (parseTime(start) ?? 0);
+  return gross - (gross > 540 ? 60 : gross > 420 ? 30 : 0);
+}
+
+/** Two made-up months that behave like HRworks: weeks and details load on click. */
+export function fakeMonths(): Map<string, FakeWeek[]> {
+  return new Map([
+    [
+      '2026-06',
+      [
+        {
+          title: 'KW 27 (29.06. - 30.06.)',
+          open: false,
+          days: [
+            { date: '2026-06-29', status: ['08:00 Uhr', '17:00 Uhr'], credited: '8:30' },
+            { date: '2026-06-30', status: ['Keine Arbeitszeit erfasst', ''] },
+          ],
+        },
+      ],
+    ],
+    [
+      '2026-07',
+      [
+        {
+          title: 'KW 27 (01.07. - 05.07.)',
+          open: true,
+          days: [
+            { date: '2026-07-01', status: ['08:00 Uhr', '18:00 Uhr'], credited: '9:00' },
+            { date: '2026-07-02', label: 'Jahresurlaub' },
+            { date: '2026-07-03', status: ['07:15 Uhr', 'Offene Arbeitszeit'], credited: '0:00' },
+            { date: '2026-07-04', label: 'Kein Arbeitstag nach Arbeitsplan' },
+            { date: '2026-07-05', label: 'Kein Arbeitstag nach Arbeitsplan' },
+          ],
+        },
+        {
+          title: 'KW 28 (06.07. - 12.07.)',
+          open: false,
+          days: [{ date: '2026-07-06', status: ['Keine Arbeitszeit erfasst', ''] }],
+        },
+      ],
+    ],
+  ]);
+}
+
+/** A fake HRworks page: weeks, details and saves load a little later, like the real one. */
+export class FakeHrworks {
+  data = fakeMonths();
+  year = 2026;
+  month = 7;
+  clicks = 0;
+  /** How many week clicks to ignore, like HRworks sometimes does. */
+  ignoreWeekClicks = 0;
+  /** Validation message to show instead of saving. */
+  rejectSave = '';
+  /** Collapse all weeks after a save, as a full re-render would. */
+  closeWeeksOnSave = false;
+  saves = 0;
+
+  constructor() {
+    this.render();
+    document.addEventListener('change', this.onChange);
+    document.addEventListener('click', this.onClick);
+  }
+
+  stop(): void {
+    document.removeEventListener('change', this.onChange);
+    document.removeEventListener('click', this.onClick);
+  }
+
+  weeks(): FakeWeek[] {
+    return this.data.get(`${this.year}-${String(this.month).padStart(2, '0')}`) ?? [];
+  }
+
+  render(): void {
+    showPage(document.body, pageHtml(this.year, this.month, this.weeks()));
+    if (this.rejectSave && this.saves > 0) {
+      document.body.insertAdjacentHTML('beforeend', `<div class="alert">${this.rejectSave}</div>`);
+    }
+  }
+
+  days(): FakeDay[] {
+    return this.weeks().flatMap((week) => week.days);
+  }
+
+  dayOf(target: Element | null | undefined): FakeDay | undefined {
+    const row = target?.closest(`[data-guide-id="${GUIDE.dayRow}"]`);
+    const label = row ? dayHeaderTexts(row).day : '';
+    return this.days().find((day) => {
+      const [y, m, d] = day.date.split('-');
+      return label.endsWith(`${d}.${m}.${y?.slice(2)}`);
+    });
+  }
+
+  // HRworks answers through the server, so changes show up a little later.
+  later(change: () => void): void {
+    setTimeout(() => {
+      change();
+      this.render();
+    }, 20);
+  }
+
+  onChange = (event: Event): void => {
+    if (!(event.target instanceof HTMLSelectElement)) return;
+    const select = event.target;
+    const label = select.options[select.selectedIndex]?.textContent ?? '';
+    this.later(() => {
+      if (MONTH_NAMES.includes(label)) this.month = MONTH_NAMES.indexOf(label) + 1;
+      else this.year = Number(label);
+    });
+  };
+
+  onClick = (event: Event): void => {
+    const target = (event.target as Element).closest('[data-guide-id]');
+    const guide = target?.getAttribute('data-guide-id');
+    this.clicks++;
+    if (guide === GUIDE.weekHead && this.ignoreWeekClicks > 0) {
+      this.ignoreWeekClicks--;
+    } else if (guide === GUIDE.weekHead) {
+      const title = target?.querySelector('.m-accordion__item-title')?.textContent?.trim();
+      this.later(() => {
+        for (const week of this.weeks()) week.open = week.title === title;
+      });
+    } else if (guide === GUIDE.infoButton) {
+      const day = this.dayOf(target);
+      this.later(() => {
+        if (day) day.detailsOpen = true;
+      });
+    } else if ((event.target as Element).closest('a')?.querySelector('.icon-streamline-add')) {
+      const day = this.dayOf(event.target as Element);
+      if (!day || (event.target as Element).closest('a')?.classList.contains('disabled')) return;
+      // HRworks prefills the start with the current time.
+      this.later(() => {
+        day.editing = { start: '20:26', end: '' };
+      });
+    } else if (guide === WRITE_GUIDE.save) {
+      this.saves++;
+      const inputs = [...document.querySelectorAll<HTMLInputElement>('input')];
+      const editing = this.days().find((day) => day.editing);
+      const [start = '', end = ''] = inputs.map((input) => input.value);
+      this.later(() => {
+        if (!editing || this.rejectSave) return;
+        delete editing.editing;
+        editing.status = [`${start} Uhr`, `${end} Uhr`];
+        editing.credited = formatDuration(creditFor(start, end));
+        if (this.closeWeeksOnSave) for (const week of this.weeks()) week.open = false;
+      });
+    }
+  };
 }

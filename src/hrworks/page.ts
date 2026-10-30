@@ -121,12 +121,12 @@ export function readCredited(row: Element): number | null {
   return findDuration(texts, CREDITED_LABEL);
 }
 
-function findRow(doc: Document, date: string): Element | null {
+export function findRow(doc: Document, date: string): Element | null {
   return dayRows(doc).find((row) => parseDayHeader(dayHeaderTexts(row))?.date === date) ?? null;
 }
 
 /** Stops on anything that means the page isn't in a state punchline understands. */
-function checkPage(doc: Document): void {
+export function checkPage(doc: Document): void {
   if ((doc.body?.textContent ?? '').includes(SESSION_EXPIRING)) {
     throw new HrworksReadError(
       'HRworks says your session is about to expire. Click "Ok" in HRworks and try again.',
@@ -137,19 +137,16 @@ function checkPage(doc: Document): void {
   }
 }
 
-/** Reads every day from `from` to `to` (inclusive), oldest first. */
-export async function readHrworksDays(
-  doc: Document,
-  from: string,
-  to: string,
-  options: ReadOptions = {},
-): Promise<HrworksDay[]> {
+export type Session = ReturnType<typeof hrworksSession>;
+
+/** Page steps shared by reading and writing. Each waits for HRworks before it returns. */
+export function hrworksSession(doc: Document, options: ReadOptions = {}) {
   const timeoutMs = options.timeoutMs ?? 30_000;
   const pauseMs = options.pauseMs ?? 300;
   const pause = () => new Promise((resolve) => setTimeout(resolve, pauseMs));
 
   /** Polls until `done` holds. Returns false after `ms`, and stops early on an unexpected page. */
-  async function waitFor(done: () => boolean, ms: number): Promise<boolean> {
+  async function waitFor(done: () => boolean, ms = timeoutMs): Promise<boolean> {
     const deadline = Date.now() + ms;
     while (true) {
       checkPage(doc);
@@ -160,9 +157,7 @@ export async function readHrworksDays(
   }
 
   async function until(done: () => boolean, what: string): Promise<void> {
-    if (!(await waitFor(done, timeoutMs))) {
-      throw new HrworksReadError(`HRworks didn't ${what} in time.`);
-    }
+    if (!(await waitFor(done))) throw new HrworksReadError(`HRworks didn't ${what} in time.`);
   }
 
   async function choose(group: string, label: string): Promise<void> {
@@ -193,51 +188,43 @@ export async function readHrworksDays(
     );
   }
 
-  checkPage(doc);
-  const days: HrworksDay[] = [];
-  for (const { year, month } of monthsBetween(from, to)) {
-    await showMonth(year, month);
-    for (const title of readWeeks(doc).map((week) => week.title)) {
-      const range = parseWeekTitle(title, year);
-      if (!range) throw new HrworksReadError(`Unexpected week title in HRworks: "${title}".`);
-      if (range.to < from || range.from > to) continue;
-
-      // Look the week up again each time: HRworks may re-render the list after a click.
-      const findWeek = () => readWeeks(doc).find((week) => week.title === title);
-      if (!findWeek()) throw new HrworksReadError(`The week "${title}" disappeared from HRworks.`);
-      const loaded = () => {
-        const current = findWeek();
-        return !!current?.open && dayRows(current.item).length > 0 && !isLoading(current.item);
-      };
-      // HRworks sometimes ignores the first click on a week, so a week that stays closed gets
-      // clicked again. An open week that is still loading only needs more time.
-      const attempts = 3;
-      for (let attempt = 1; !loaded(); attempt++) {
-        const current = findWeek();
-        if (current && !current.open) {
-          current.head.click();
-          await pause();
-        }
-        if (await waitFor(loaded, timeoutMs / attempts)) break;
-        if (attempt === attempts)
-          throw new HrworksReadError(`HRworks didn't open ${title} in time.`);
+  /** Opens a week of the shown month and returns its day rows once they have loaded. */
+  async function openWeek(title: string): Promise<Element[]> {
+    // Look the week up again each time: HRworks may re-render the list after a click.
+    const findWeek = () => readWeeks(doc).find((week) => week.title === title);
+    if (!findWeek()) throw new HrworksReadError(`The week "${title}" disappeared from HRworks.`);
+    const loaded = () => {
+      const current = findWeek();
+      return !!current?.open && dayRows(current.item).length > 0 && !isLoading(current.item);
+    };
+    // HRworks sometimes ignores the first click on a week, so a week that stays closed gets
+    // clicked again. An open week that is still loading only needs more time.
+    const attempts = 3;
+    for (let attempt = 1; !loaded(); attempt++) {
+      const current = findWeek();
+      if (current && !current.open) {
+        current.head.click();
+        await pause();
       }
-
-      const rows = dayRows(findWeek()?.item ?? doc);
-      for (const row of rows) {
-        const header = parseDayHeader(dayHeaderTexts(row));
-        if (!header) throw new HrworksReadError(`Unexpected day in HRworks ${title}.`);
-        if (header.date < range.from || header.date > range.to) {
-          throw new HrworksReadError(`HRworks shows ${header.date} under ${title}.`);
-        }
-        if (header.date < from || header.date > to) continue;
-        let creditedMinutes: number | null = null;
-        if (header.entries.length > 0) {
-          creditedMinutes = await openCredited(header.date);
-        }
-        days.push({ ...header, creditedMinutes });
-      }
+      if (await waitFor(loaded, timeoutMs / attempts)) break;
+      if (attempt === attempts) throw new HrworksReadError(`HRworks didn't open ${title} in time.`);
     }
+    return dayRows(findWeek()?.item ?? doc);
+  }
+
+  /** Shows the month and opens the week of `date`, and returns the day's row. */
+  async function openDay(date: string): Promise<Element> {
+    const year = Number(date.slice(0, 4));
+    await showMonth(year, Number(date.slice(5, 7)));
+    const week = readWeeks(doc).find((w) => {
+      const range = parseWeekTitle(w.title, year);
+      return !!range && range.from <= date && date <= range.to;
+    });
+    if (!week) throw new HrworksReadError(`HRworks shows no week with ${date}.`);
+    await openWeek(week.title);
+    const row = findRow(doc, date);
+    if (!row) throw new HrworksReadError(`HRworks didn't show ${date}.`);
+    return row;
   }
 
   async function openCredited(date: string): Promise<number> {
@@ -257,6 +244,40 @@ export async function readHrworksDays(
     }, `show the details of ${date}`);
     if (credited === null) throw new HrworksReadError(`No credited hours for ${date}.`);
     return credited;
+  }
+
+  return { pause, waitFor, until, showMonth, openWeek, openDay, openCredited };
+}
+
+/** Reads every day from `from` to `to` (inclusive), oldest first. */
+export async function readHrworksDays(
+  doc: Document,
+  from: string,
+  to: string,
+  options: ReadOptions = {},
+): Promise<HrworksDay[]> {
+  const session = hrworksSession(doc, options);
+  checkPage(doc);
+  const days: HrworksDay[] = [];
+  for (const { year, month } of monthsBetween(from, to)) {
+    await session.showMonth(year, month);
+    for (const title of readWeeks(doc).map((week) => week.title)) {
+      const range = parseWeekTitle(title, year);
+      if (!range) throw new HrworksReadError(`Unexpected week title in HRworks: "${title}".`);
+      if (range.to < from || range.from > to) continue;
+
+      for (const row of await session.openWeek(title)) {
+        const header = parseDayHeader(dayHeaderTexts(row));
+        if (!header) throw new HrworksReadError(`Unexpected day in HRworks ${title}.`);
+        if (header.date < range.from || header.date > range.to) {
+          throw new HrworksReadError(`HRworks shows ${header.date} under ${title}.`);
+        }
+        if (header.date < from || header.date > to) continue;
+        const creditedMinutes =
+          header.entries.length > 0 ? await session.openCredited(header.date) : null;
+        days.push({ ...header, creditedMinutes });
+      }
+    }
   }
 
   // A silent gap would look like "nothing in HRworks", so a missing day stops the read.
