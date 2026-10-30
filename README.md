@@ -49,7 +49,24 @@ Override mode logs the old HRworks values before changing anything, since HRwork
 - From–to range
 - Single day
 
-## Setup
+## Install
+
+punchline is published as an unlisted Chrome Web Store item. Open the install link you got from
+the team and click **Add to Chrome**. Chrome keeps it up to date.
+
+Without the store: download `punchline-<version>.zip` from the latest
+[GitHub Release](https://github.com/gruesomeparty/punchline/releases/latest), unzip it, open
+`chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the unzipped
+folder. You'll have to repeat that for every update.
+
+Then open punchline's settings and enter your Harvest personal access token and Account ID
+(Harvest → Developers → Personal Access Tokens). See the [privacy policy](docs/privacy-policy.md)
+for what punchline stores.
+
+Maintainers: releasing and the store listing are described in
+[docs/chrome-web-store.md](docs/chrome-web-store.md).
+
+## Development setup
 
 Requires [Node.js](https://nodejs.org/) 24 and
 [gitleaks](https://github.com/gitleaks/gitleaks#installing).

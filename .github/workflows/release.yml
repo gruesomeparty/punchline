@@ -1,0 +1,53 @@
+name: Release
+
+# Pushing a tag like v1.2.3 runs the full verify, then publishes punchline-1.2.3.zip as a
+# GitHub Release. The same zip is what gets uploaded to the Chrome Web Store.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci --ignore-scripts
+      - run: npm run check:release -- "$GITHUB_REF_NAME"
+      - run: npx biome ci .
+      - run: npm run typecheck
+      - run: npm run check:files
+      - run: npm run check:manifest
+      - run: npm run coverage
+      - run: npm run build
+      - run: npm run check:manifest -- dist/manifest.json
+      - run: npm run package
+
+      - name: Write checksum
+        run: sha256sum punchline-*.zip > SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" punchline-*.zip SHA256SUMS.txt
+          --repo "$GITHUB_REPOSITORY"
+          --title "punchline $GITHUB_REF_NAME"
+          --generate-notes
+          --verify-tag
