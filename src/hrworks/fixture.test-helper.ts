@@ -23,6 +23,8 @@ export type FakeDay = {
   addDisabled?: boolean;
   /** Times typed into the saved entry's inputs, not saved yet. */
   draft?: { start: string; end: string };
+  /** More entries shown in the details only, e.g. extra open entries added with "+". */
+  extra?: { start: string; end: string }[];
 };
 
 export type FakeWeek = { title: string; open: boolean; days: FakeDay[] };
@@ -53,6 +55,9 @@ function entryHtml(entry: { start: string; end: string }): string {
     `<div class="form-group" data-guide-id="${guide}"><div class="input-group"><input class="form-control" type="text" value="${value}"></div></div>`;
   return `<div class="row" data-guide-id="${WRITE_GUIDE.entry}"><div class="col-10"><div class="row">
     ${field(WRITE_GUIDE.start, entry.start)}${field(WRITE_GUIDE.end, entry.end)}
+  </div></div><div class="col-2"><div class="m-dropdown" data-guide-id="${WRITE_GUIDE.menu}">
+    <a href="javascript:;" class="m-dropdown__toggle"><i></i></a>
+    <ul><li data-guide-id="${WRITE_GUIDE.remove}"><a href="javascript:;"><span> Löschen</span></a></li></ul>
   </div></div></div>`;
 }
 
@@ -68,7 +73,10 @@ function savedEntry(day: FakeDay): { start: string; end: string } | null {
 function details(day: FakeDay): string {
   const open = day.detailsOpen || day.editing;
   const saved = day.detailsOpen ? (day.draft ?? savedEntry(day)) : null;
-  const entries = [saved, day.editing].flatMap((entry) => (entry ? [entryHtml(entry)] : []));
+  const extra = day.detailsOpen || day.editing ? (day.extra ?? []) : [];
+  const entries = [saved, day.editing, ...extra].flatMap((entry) =>
+    entry ? [entryHtml(entry)] : [],
+  );
   return `<div class="row${open ? '' : ' bs-hide'}">${infoPanel(day)}
     <div class="col-12">${entries.join('')}</div></div>`;
 }
@@ -265,19 +273,28 @@ export class FakeHrworks {
   };
 
   /** Every HRworks event sends the whole form, so typed values survive the re-render. */
-  entriesOnPage(): { day: FakeDay; start: string; end: string }[] {
-    return byGuideIn(document, WRITE_GUIDE.entry).flatMap((entry) => {
-      const holder = entry.closest('.hrw-me-object-holder-without-separator-line');
+  entriesOnPage(): { day: FakeDay; start: string; end: string; element: Element }[] {
+    return byGuideIn(document, WRITE_GUIDE.entry).flatMap((element) => {
+      const holder = element.closest('.hrw-me-object-holder-without-separator-line');
       const day = this.dayOf(holder?.querySelector(`[data-guide-id="${GUIDE.dayRow}"]`));
-      const [start = '', end = ''] = [...entry.querySelectorAll('input')].map((i) => i.value);
-      return day ? [{ day, start, end }] : [];
+      const [start = '', end = ''] = [...element.querySelectorAll('input')].map((i) => i.value);
+      return day ? [{ day, start, end, element }] : [];
     });
   }
 
   onClick = (event: Event): void => {
+    const shown = new Map<FakeDay, { start: string; end: string }[]>();
     for (const { day, start, end } of this.entriesOnPage()) {
-      if (day.editing) day.editing = { start, end };
-      else day.draft = { start, end };
+      shown.set(day, [...(shown.get(day) ?? []), { start, end }]);
+    }
+    // Entries are shown in this order: saved (or its draft), new, extra.
+    for (const [day, values] of shown) {
+      const rest = [...values];
+      const saved = savedEntry(day) ? rest.shift() : undefined;
+      if (saved) day.draft = saved;
+      const added = day.editing ? rest.shift() : undefined;
+      if (added) day.editing = added;
+      if (day.extra) day.extra = rest;
     }
     const target = (event.target as Element).closest('[data-guide-id]');
     const guide = target?.getAttribute('data-guide-id');
@@ -305,6 +322,20 @@ export class FakeHrworks {
       this.later(() => {
         day.editing = { start: '20:26', end: '' };
       });
+    } else if (guide === WRITE_GUIDE.remove) {
+      const entry = target?.closest(`[data-guide-id="${WRITE_GUIDE.entry}"]`);
+      const day = this.entriesOnPage().find((e) => e.element === entry)?.day;
+      const index = day
+        ? this.entriesOnPage()
+            .filter((e) => e.day === day)
+            .findIndex((e) => e.element === entry)
+        : -1;
+      this.later(() => {
+        if (!day) return;
+        const slots = (savedEntry(day) ? 1 : 0) + (day.editing ? 1 : 0);
+        if (index >= slots) day.extra?.splice(index - slots, 1);
+        else if (day.editing && index === slots - 1) delete day.editing;
+      });
     } else if (guide === WRITE_GUIDE.save) {
       this.saves++;
       // Speichern sends every entry on the page, saved or new, with whatever is in its inputs.
@@ -314,6 +345,7 @@ export class FakeHrworks {
         for (const { day, start, end } of sent) {
           delete day.editing;
           delete day.draft;
+          delete day.extra;
           day.status = [`${start} Uhr`, `${end} Uhr`];
           day.credited = formatDuration(creditFor(start, end));
         }

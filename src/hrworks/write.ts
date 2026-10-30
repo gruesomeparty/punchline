@@ -23,6 +23,9 @@ export const WRITE_GUIDE = {
   start: 'b88c6142-3907-4da7-92e3-3486566804f6',
   end: '10589c97-f535-436c-9d7e-c4276bef0d75',
   save: 'e474b16c-8177-4338-b339-dbb027e2ee81',
+  /** The ⋮ menu of an entry, and its "Löschen" item. */
+  menu: 'd90aac9a-af09-4404-ae63-8fb01160d840',
+  remove: 'ed0bcd4f-48d4-44f0-b402-88cb52d8d8bc',
 } as const;
 
 export type WriteDay = {
@@ -41,7 +44,12 @@ export type WriteDay = {
 };
 
 export type WriteResult =
-  | { ok: true; day: HrworksDay }
+  | {
+      ok: true;
+      day: HrworksDay;
+      /** Extra open entries that were removed before the override, for the log. */
+      removed?: HrworksEntry[];
+    }
   /** `saved` says whether Speichern was clicked, so the user knows to check HRworks. */
   | {
       ok: false;
@@ -63,11 +71,15 @@ function isDisabled(element: Element): boolean {
   return element.classList.contains('disabled') || element.hasAttribute('disabled');
 }
 
-/** The editable entries under a day row, in its details block (the row's next sibling). */
-function entryInputs(row: Element): { start: HTMLInputElement; end: HTMLInputElement }[] {
+/** The entries under a day row, in its details block (the row's next sibling). */
+function entryRows(row: Element): Element[] {
   const details = row.nextElementSibling;
-  if (!details) return [];
-  return byGuide(details, WRITE_GUIDE.entry).flatMap((entry) => {
+  return details ? byGuide(details, WRITE_GUIDE.entry) : [];
+}
+
+/** The editable entries under a day row. */
+function entryInputs(row: Element): { start: HTMLInputElement; end: HTMLInputElement }[] {
+  return entryRows(row).flatMap((entry) => {
     const start = byGuide(entry, WRITE_GUIDE.start)[0]?.querySelector('input');
     const end = byGuide(entry, WRITE_GUIDE.end)[0]?.querySelector('input');
     return start && end ? [{ start, end }] : [];
@@ -166,7 +178,7 @@ async function openSavedEntry(
   row: Element,
   header: DayHeader,
   day: WriteDay,
-): Promise<EntryInputs> {
+): Promise<{ inputs: EntryInputs; removed: HrworksEntry[] }> {
   const { date, previous = [] } = day;
   if (JSON.stringify(header.entries) !== JSON.stringify(previous)) {
     throw new HrworksReadError(
@@ -182,16 +194,14 @@ async function openSavedEntry(
   if ((!header.workday && !day.dayOff) || header.absence) {
     throw new HrworksReadError(`${date} is not a plain workday in HRworks. Nothing written.`);
   }
-  // An open details block holds the entry; more inputs mean extra entries added with "+".
-  const open = entryInputs(row).length;
-  if (open > 1) {
-    throw new HrworksReadError(
-      `${date} has ${open} entries open in HRworks, some never saved. Reload HRworks to drop them.`,
-    );
-  }
-  // Reading the credited hours opens the details, which hold the saved entry's inputs. An open
-  // entry that was just added with "+" already shows its inputs.
+  // Reading the credited hours opens the details, which hold the entries' inputs. An entry that
+  // was just added with "+" already shows them.
   if (entryInputs(row).length === 0) await session.openCredited(date);
+  await session.until(() => {
+    const current = findRow(doc, date);
+    return !!current && entryInputs(current).length > 0;
+  }, `show the entries on ${date}`);
+  const removed = await removeExtraOpenEntries(doc, session, date);
   const inputs = await waitForOneEntry(doc, session, date, `show the entry on ${date}`);
   if (inputs.start.value !== entry.start || inputs.end.value !== entry.end) {
     throw new HrworksReadError(
@@ -199,7 +209,48 @@ async function openSavedEntry(
         `${entry.start}–${entry.end}. Nothing written.`,
     );
   }
-  return inputs;
+  return { inputs, removed };
+}
+
+/**
+ * The day header shows only the first entry. Extra entries without an end time, such as ones
+ * added with "+" and never finished, carry no hours, so they are removed and the first one is
+ * overridden. A day with a finished extra entry may be a real split shift and is left alone.
+ */
+async function removeExtraOpenEntries(
+  doc: Document,
+  session: Session,
+  date: string,
+): Promise<HrworksEntry[]> {
+  const current = () => {
+    const now = findRow(doc, date);
+    return now ? entryInputs(now) : [];
+  };
+  const all = current();
+  if (all.length <= 1) return [];
+  if (all.some((inputs) => inputs.end.value.trim() !== '')) {
+    throw new HrworksReadError(
+      `${date} has ${all.length} entries in HRworks and not all are open. Change it by hand.`,
+    );
+  }
+  const removed = all.slice(1).map((inputs) => ({ start: inputs.start.value, end: '' }));
+  while (current().length > 1) {
+    const before = current().length;
+    const now = findRow(doc, date);
+    const last = now ? entryRows(now).at(-1) : undefined;
+    const menu = last && byGuide(last, WRITE_GUIDE.menu)[0];
+    const toggle = menu?.querySelector<HTMLElement>('.m-dropdown__toggle');
+    const remove = menu && byGuide(menu, WRITE_GUIDE.remove)[0]?.querySelector<HTMLElement>('a');
+    if (!toggle || !remove) {
+      throw new HrworksReadError(`HRworks shows no way to remove an entry on ${date}.`);
+    }
+    toggle.click();
+    await session.pause();
+    remove.click();
+    await session.pause();
+    await session.until(() => current().length < before, `remove an extra entry on ${date}`);
+  }
+  return removed;
 }
 
 /** The new entry's inputs of a day that was filled in but not saved yet. */
@@ -209,14 +260,14 @@ function filledInputs(doc: Document, date: string): EntryInputs | null {
   return all.length === 1 ? (all[0] ?? null) : null;
 }
 
-/** Types one day's times into HRworks without saving. */
-async function fillDay(doc: Document, session: Session, day: WriteDay): Promise<void> {
+/** Types one day's times into HRworks without saving. Returns the extra entries it removed. */
+async function fillDay(doc: Document, session: Session, day: WriteDay): Promise<HrworksEntry[]> {
   const row = await session.openDay(day.date);
   const header = readDayHeader(doc, row);
   if (!header) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
-  const inputs = day.previous
+  const { inputs, removed } = day.previous
     ? await openSavedEntry(doc, session, row, header, day)
-    : await openNewEntry(doc, session, row, header, day);
+    : { inputs: await openNewEntry(doc, session, row, header, day), removed: [] };
   typeInto(inputs.start, day.start);
   typeInto(inputs.end, day.end);
   await session.pause();
@@ -225,6 +276,7 @@ async function fillDay(doc: Document, session: Session, day: WriteDay): Promise<
       `HRworks changed the times on ${day.date} to ${inputs.start.value}–${inputs.end.value}.`,
     );
   }
+  return removed;
 }
 
 /** Checks one saved day: the header shows exactly the new times and the credited hours match. */
@@ -276,11 +328,12 @@ export async function writeDays(
 
   let current = days[0]?.date ?? '';
   let filled = 0;
+  const removed = new Map<string, HrworksEntry[]>();
   try {
     checkPage(doc);
     for (const day of days) {
       current = day.date;
-      await fillDay(doc, session, day);
+      removed.set(day.date, await fillDay(doc, session, day));
       filled++;
     }
     for (const day of days) {
@@ -330,7 +383,9 @@ export async function writeDays(
   const results: WriteResult[] = [];
   for (const day of days) {
     try {
-      results.push({ ok: true, day: await checkDay(doc, session, day) });
+      const extra = removed.get(day.date) ?? [];
+      const checked = await checkDay(doc, session, day);
+      results.push({ ok: true, day: checked, ...(extra.length > 0 ? { removed: extra } : {}) });
     } catch (error) {
       results.push({ ok: false, error: message(error), saved: true });
     }

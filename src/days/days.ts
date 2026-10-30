@@ -151,7 +151,8 @@ function confirmWrite(days: readonly WritableDay[], earlier: WriteLogEntry | nul
       note:
         (earlier ? `punchline wrote this day on ${earlier.at.slice(0, 10)}. ` : '') +
         (override
-          ? 'HRworks has no undo. punchline logs the old times before it saves.'
+          ? 'HRworks has no undo. punchline logs the old times before it saves. Extra open ' +
+            'entries on this day are removed.'
           : 'punchline checks the day in HRworks after saving.'),
       confirmLabel: override ? 'Override' : 'Write',
       icon,
@@ -231,15 +232,18 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
         : response;
     for (const [i, attempt] of attempts.entries()) {
       const result = results[i] ?? { ok: false, error: 'No answer for this day.', saved: true };
+      const removed = result.ok ? (result.removed ?? []) : [];
       await appendWriteLog({
         ...attempt,
+        previous: [...attempt.previous, ...removed],
         at: new Date().toISOString(),
         result: result.ok ? 'ok' : result.saved ? 'unknown' : 'failed',
         message: result.ok ? '' : result.error,
       });
       if (result.ok) {
         written++;
-        showInCell(attempt.date, 'Written and checked', 'ok');
+        const note = removed.length > 0 ? ` (removed ${removed.length} open entries)` : '';
+        showInCell(attempt.date, `Written and checked${note}`, 'ok');
       } else {
         const hint = result.saved ? ' Check this day in HRworks.' : '';
         showInCell(attempt.date, `${result.error}${hint}`, 'error');

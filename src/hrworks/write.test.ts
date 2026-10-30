@@ -135,18 +135,40 @@ describe('writeDay override', () => {
     expect(await writeDay(document, unsaved, fast)).toMatchObject({ ok: true });
   });
 
-  it('refuses a day with several entries open', async () => {
-    const day = hrworks.days().find((d) => d.date === '2026-07-01');
-    if (day) {
-      day.detailsOpen = true;
-      day.editing = { start: '20:26', end: '' };
-    }
+  it('removes extra open entries, then overrides the first', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-03');
+    if (day)
+      day.extra = [
+        { start: '22:28', end: '' },
+        { start: '22:30', end: '' },
+      ];
     hrworks.render();
-    expect(await writeDay(document, override, fast)).toMatchObject({
+    const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
+    const result = await writeDay(document, open, fast);
+    expect(result).toMatchObject({
+      ok: true,
+      day: { entries: [{ start: '08:00', end: '17:00' }] },
+      removed: [
+        { start: '22:28', end: '' },
+        { start: '22:30', end: '' },
+      ],
+    });
+    expect(day?.extra ?? []).toEqual([]);
+    expect(hrworks.saves).toBe(1);
+  });
+
+  it('leaves a day with a finished extra entry alone', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-03');
+    if (day) day.extra = [{ start: '13:00', end: '17:00' }];
+    hrworks.render();
+    const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
+    expect(await writeDay(document, open, fast)).toMatchObject({
       ok: false,
       saved: false,
-      error: /2 entries open.*Reload HRworks/,
+      error: /not all are open/,
     });
+    expect(day?.extra).toHaveLength(1);
+    expect(hrworks.saves).toBe(0);
   });
 
   it('refuses a day without entries', async () => {
