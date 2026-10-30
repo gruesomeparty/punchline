@@ -25,6 +25,32 @@ import { isOnDarkBackground } from './page-theme.ts';
 import { parseWeekTitle } from './parse.ts';
 import { writeDays } from './write.ts';
 
+// The extension icon, drawn small: a time card going into HRworks. Built element by element,
+// like everything else here, so no markup is ever parsed into the page.
+const MARK_SHAPES: [string, Record<string, string>][] = [
+  ['rect', { width: '32', height: '32', rx: '7', fill: '#14234a' }],
+  [
+    'path',
+    { d: 'M5 11.5a2 2 0 0 1 2-2h8.5l3.5 3.5v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z', fill: '#f3efe6' },
+  ],
+  ['circle', { cx: '9.5', cy: '13.5', r: '1.8', fill: '#14234a' }],
+  ['path', { d: 'M19 14h5v-3l5 5-5 5v-3h-5z', fill: '#f59a23' }],
+];
+
+function markIcon(doc: Document): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = doc.createElementNS(ns, 'svg');
+  for (const [name, value] of Object.entries({ viewBox: '0 0 32 32', width: '20', height: '20' })) {
+    svg.setAttribute(name, value);
+  }
+  for (const [tag, attributes] of MARK_SHAPES) {
+    const shape = doc.createElementNS(ns, tag);
+    for (const [name, value] of Object.entries(attributes)) shape.setAttribute(name, value);
+    svg.append(shape);
+  }
+  return svg;
+}
+
 const BAR_TAG = 'punchline-bar';
 const BADGE_TAG = 'punchline-badge';
 
@@ -101,8 +127,9 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
   const style = make(doc, 'style');
   style.textContent = INLINE_STYLE;
   const bar = make(doc, 'div', '', 'bar');
-  const mark = make(doc, 'span', 'p', 'mark');
+  const mark = make(doc, 'span', '', 'mark');
   mark.setAttribute('aria-hidden', 'true');
+  mark.append(markIcon(doc));
   const checkButton = make(doc, 'button', 'Compare with Harvest', 'primary');
   checkButton.type = 'button';
   const summary = make(doc, 'span', '', 'summary');
@@ -225,7 +252,10 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
       const badgeStyle = make(doc, 'style');
       badgeStyle.textContent = INLINE_STYLE;
       root.append(badgeStyle, content);
-      (row.querySelector('.col-10 .row') ?? row).append(host);
+      // Next to the row's own ⓘ and + buttons, so it reads as one more action on the same line.
+      const info = row.querySelector(`[data-guide-id="${GUIDE.infoButton}"]`);
+      if (info?.parentElement) info.parentElement.prepend(host);
+      else row.append(host);
     }
   }
 

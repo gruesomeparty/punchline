@@ -46,23 +46,11 @@ export const INLINE_STYLE = `
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 10px;
-    padding: 6px 10px;
-    border: 1px solid var(--line);
-    border-left: 3px solid var(--accent);
-    border-radius: 6px;
-    background: transparent;
+    padding: 4px 0;
     font-size: 13px;
   }
   .mark {
-    display: inline-grid;
-    place-items: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 5px;
-    background: var(--accent);
-    color: var(--on-accent);
-    font-weight: 700;
-    font-size: 12px;
+    display: inline-flex;
   }
   .primary,
   .secondary {
@@ -93,11 +81,12 @@ export const INLINE_STYLE = `
   }
   .badge {
     display: inline-block;
-    margin-left: 8px;
-    padding: 1px 7px;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    font-size: 12px;
+    vertical-align: middle;
+    margin-right: 12px;
+    padding: 3px 10px;
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+    border-radius: 6px;
+    font-size: 13px;
     font-weight: 600;
     line-height: 18px;
     font-variant-numeric: tabular-nums;
@@ -109,26 +98,29 @@ export const INLINE_STYLE = `
   }
   button.badge:hover {
     border-color: currentColor;
+    background-image: linear-gradient(color-mix(in srgb, currentColor 8%, transparent) 0 0);
   }
   .create {
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
   .override {
     color: var(--warn);
-    background: color-mix(in srgb, var(--warn) 16%, transparent);
+    background: color-mix(in srgb, var(--warn) 10%, transparent);
   }
   .flag {
     color: var(--error);
-    background: color-mix(in srgb, var(--error) 14%, transparent);
+    background: color-mix(in srgb, var(--error) 10%, transparent);
   }
   .match {
     color: var(--muted);
     background: none;
+    border-color: transparent;
   }
   .result {
     font-weight: normal;
     white-space: normal;
+    border-color: transparent;
   }
   .result.ok {
     color: var(--ok);
