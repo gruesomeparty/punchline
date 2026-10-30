@@ -1,0 +1,17 @@
+# Gitleaks config used by the pre-commit hook and CI.
+title = "punchline"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "harvest-personal-access-token"
+description = "Harvest personal access token"
+regex = '''\b\d{4,10}\.pt\.[A-Za-z0-9_-]{40,}'''
+keywords = [".pt."]
+
+[[rules]]
+id = "harvest-oauth-token"
+description = "Harvest OAuth access or refresh token"
+regex = '''\b\d{4,10}\.(?:at|rt)\.[A-Za-z0-9_-]{40,}'''
+keywords = [".at.", ".rt."]

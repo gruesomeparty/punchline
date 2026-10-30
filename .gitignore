@@ -1,0 +1,44 @@
+# Dependencies & build output
+node_modules/
+dist/
+coverage/
+*.zip
+*.crx
+*.tsbuildinfo
+
+# Secrets — never commit (also enforced by .githooks/pre-commit and CI)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*.token
+*token*.json
+*token*.txt
+*secret*.json
+*secret*.txt
+*credential*.json
+*credential*.txt
+
+# Captured browser sessions (contain cookies, tokens and personal data)
+*.har
+*.mhtml
+*.mht
+
+# docs/ is for local reference material (HAR files, DevTools Recorder exports,
+# HTML snapshots, screenshots of HRworks). Only Markdown is ever committed.
+docs/**
+!docs/**/
+!docs/**/*.md
+
+# Editors & OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log

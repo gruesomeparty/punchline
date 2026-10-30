@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "punchline",
+  "description": "Syncs daily working hours from Harvest into HRworks.",
+  "version": "0.0.0",
+  "minimum_chrome_version": "120",
+  "action": {
+    "default_title": "punchline",
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [],
+  "host_permissions": []
+}

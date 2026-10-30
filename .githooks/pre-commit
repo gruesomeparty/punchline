@@ -1,0 +1,13 @@
+#!/bin/sh
+# Blocks secrets and local-only files from being committed.
+# Enabled by `npm run setup` (git config core.hooksPath .githooks).
+set -eu
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "✖ gitleaks is not installed, so secrets cannot be checked." >&2
+  echo "  Install it (e.g. 'brew install gitleaks'), see CONTRIBUTING.md." >&2
+  exit 1
+fi
+
+gitleaks git --pre-commit --staged --redact --no-banner --log-level warn
+node scripts/check-files.ts --staged
