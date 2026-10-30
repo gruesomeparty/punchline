@@ -64,14 +64,14 @@ Removing it also deletes your saved token and settings.
 
 ## Troubleshooting
 
-| Problem | Fix |
-| --- | --- |
-| "Manifest file is missing or unreadable" | You picked the wrong folder. Select the one that directly contains `manifest.json`. |
-| punchline is gone after a restart | The folder was moved or deleted. Unzip again and load it again. |
-| Settings are empty after an update | You loaded a different folder. Remove that copy and load the original folder. |
-| Test connection fails | Check the token and Account ID in Harvest. A token copied with spaces fails. |
-| Preview says "Open HRworks Arbeitszeiten in a tab." | Open HRworks, log in and go to Arbeitszeiten. |
-| Your company blocks Developer mode | Ask IT to allow it, or wait for the Chrome Web Store version. |
+| Problem                                             | Fix                                                                                 |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| "Manifest file is missing or unreadable"            | You picked the wrong folder. Select the one that directly contains `manifest.json`. |
+| punchline is gone after a restart                   | The folder was moved or deleted. Unzip again and load it again.                     |
+| Settings are empty after an update                  | You loaded a different folder. Remove that copy and load the original folder.       |
+| Test connection fails                               | Check the token and Account ID in Harvest. A token copied with spaces fails.        |
+| Preview says "Open HRworks Arbeitszeiten in a tab." | Open HRworks, log in and go to Arbeitszeiten.                                       |
+| Your company blocks Developer mode                  | Ask IT to allow it, or wait for the Chrome Web Store version.                       |
 
 ## For AI assistants helping someone install
 
