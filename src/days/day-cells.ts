@@ -1,6 +1,6 @@
 // What the days table shows for each row. Kept apart from the page so it can be tested.
 
-import { addDays, formatDuration, isIsoDate } from '../lib/time.ts';
+import { addDays, formatDuration, isIsoDate, weekday } from '../lib/time.ts';
 import type { DayRow } from './harvest-days.ts';
 
 export type NoteKind = '' | 'muted' | 'warn' | 'error';
@@ -44,6 +44,26 @@ export function dayCells(row: DayRow): DayCells {
 export function defaultRange(today: string): { from: string; to: string } {
   const yesterday = addDays(today, -1);
   return { from: `${yesterday.slice(0, 7)}-01`, to: yesterday };
+}
+
+export type RangePreset = 'this-week' | 'last-week' | 'this-month' | 'last-month';
+
+/** Quick ranges, so the date picker isn't needed (it misbehaves in the side panel). */
+export function presetRange(preset: RangePreset, today: string): { from: string; to: string } {
+  const monday = addDays(today, -((weekday(today) + 6) % 7));
+  const firstOfMonth = `${today.slice(0, 7)}-01`;
+  switch (preset) {
+    case 'this-week':
+      return { from: monday, to: today };
+    case 'last-week':
+      return { from: addDays(monday, -7), to: addDays(monday, -1) };
+    case 'this-month':
+      return { from: firstOfMonth, to: today };
+    case 'last-month': {
+      const lastDay = addDays(firstOfMonth, -1);
+      return { from: `${lastDay.slice(0, 7)}-01`, to: lastDay };
+    }
+  }
 }
 
 export const MAX_DAYS = 400;

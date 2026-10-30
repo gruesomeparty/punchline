@@ -17,7 +17,7 @@ import { countActions, previewCells } from '../plan/plan-cells.ts';
 import { appendWriteLog, loadWriteLog, wasWritten } from '../plan/write-log.ts';
 import { loadSettings, validateSettings } from '../settings/settings.ts';
 import { byId, el } from '../ui/dom.ts';
-import { defaultRange, rangeError } from './day-cells.ts';
+import { defaultRange, presetRange, type RangePreset, rangeError } from './day-cells.ts';
 import { type DayRow, harvestDays } from './harvest-days.ts';
 
 const form = byId<HTMLFormElement>('range');
@@ -203,3 +203,12 @@ form.addEventListener('submit', async (event) => {
 const range = defaultRange(localToday());
 from.value = range.from;
 to.value = range.to;
+
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-preset]')) {
+  button.addEventListener('click', () => {
+    const preset = presetRange(button.dataset.preset as RangePreset, localToday());
+    from.value = preset.from;
+    to.value = preset.to;
+    form.requestSubmit();
+  });
+}
