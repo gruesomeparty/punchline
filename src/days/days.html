@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>punchline</title>
+    <title>punchline preview</title>
     <link rel="stylesheet" href="../ui/page.css" />
     <script type="module" src="days.js"></script>
   </head>
   <body>
     <main>
-      <h1>Harvest days</h1>
+      <h1>Preview</h1>
       <form id="range" class="row">
         <div>
           <label for="from">From</label>
@@ -19,11 +19,12 @@
           <label for="to">To</label>
           <input id="to" type="date" required />
         </div>
-        <button type="submit">Load from Harvest</button>
+        <button type="submit">Load preview</button>
       </form>
       <p class="hint">
-        Read only. Shows the start and end time each day needs in HRworks so that, after breaks,
-        it matches Harvest. Nothing is written to HRworks yet.
+        Read only. Loads your Harvest hours and, if HRworks Arbeitszeiten is open in a tab,
+        compares them with what HRworks already has. The HRworks tab will switch months and open
+        weeks while it reads. Nothing is written to HRworks yet.
       </p>
       <div id="status" class="status" role="status"></div>
       <table id="days" hidden>
@@ -31,9 +32,10 @@
           <tr>
             <th>Day</th>
             <th>Harvest</th>
-            <th>Start</th>
-            <th>End</th>
+            <th>HRworks now</th>
+            <th>Enter</th>
             <th>Break</th>
+            <th>Action</th>
             <th>Note</th>
           </tr>
         </thead>

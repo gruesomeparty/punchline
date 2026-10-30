@@ -35,6 +35,13 @@ async function copyStatic(): Promise<void> {
   }
 }
 
+// Content scripts can't be ES modules, so they get their own build as plain scripts.
+const contentOptions: BuildOptions = {
+  ...options,
+  entryPoints: { 'hrworks/content': 'src/hrworks/content.ts' },
+  format: 'iife',
+};
+
 await rm(outdir, { recursive: true, force: true });
 await copyStatic();
 
@@ -43,7 +50,8 @@ if (process.argv.includes('--watch')) {
     ...options,
     plugins: [{ name: 'static', setup: (b) => b.onEnd(copyStatic) }],
   });
-  await ctx.watch();
+  const contentCtx = await context(contentOptions);
+  await Promise.all([ctx.watch(), contentCtx.watch()]);
 } else {
-  await build(options);
+  await Promise.all([build(options), build(contentOptions)]);
 }

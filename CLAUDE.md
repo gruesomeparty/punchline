@@ -14,7 +14,10 @@ dependencies.
 - `src/background.ts`: service worker entry
 - `src/popup/`: popup UI (`popup.html`, `popup.ts`, `popup.css`). It only opens the pages below.
 - `src/options/`: settings page (Harvest credentials, start time, break rules)
-- `src/days/`: Harvest days page, plus the pure logic that turns Harvest totals into day rows
+- `src/days/`: preview page, plus the pure logic that turns Harvest totals into day rows
+- `src/plan/`: compares Harvest with HRworks and decides what to do with each day
+- `src/hrworks/`: content script that reads the HRworks Arbeitszeiten page, and the text parsing
+  behind it. Tests run against synthetic markup in `fixture.test-helper.ts`.
 - `src/harvest/`: Harvest API client and daily totals
 - `src/rules/`: break presets (Switzerland, Germany) and the start/end calculation
 - `src/settings/`: settings stored in `chrome.storage.local`

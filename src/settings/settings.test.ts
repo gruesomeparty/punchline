@@ -22,6 +22,7 @@ describe('normalizeSettings', () => {
       breakPreset: 'de',
       breakRules: BREAK_PRESETS.de.rules,
       startTime: '08:30',
+      conflictMode: 'override',
     });
     expect(settings).toEqual({
       harvestToken: 'abc',
@@ -29,6 +30,7 @@ describe('normalizeSettings', () => {
       breakPreset: 'de',
       breakRules: BREAK_PRESETS.de.rules,
       startTime: '08:30',
+      conflictMode: 'override',
     });
   });
 

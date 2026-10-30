@@ -7,6 +7,7 @@ import {
   isIsoDate,
   isWeekend,
   localToday,
+  monthsBetween,
   parseTime,
   weekday,
 } from './time.ts';
@@ -62,5 +63,17 @@ describe('dates', () => {
 
   it('adds days', () => {
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+  });
+});
+
+describe('monthsBetween', () => {
+  it('lists every month a range touches', () => {
+    expect(monthsBetween('2026-11-15', '2027-02-01')).toEqual([
+      { year: 2026, month: 11 },
+      { year: 2026, month: 12 },
+      { year: 2027, month: 1 },
+      { year: 2027, month: 2 },
+    ]);
+    expect(monthsBetween('2026-07-01', '2026-07-31')).toEqual([{ year: 2026, month: 7 }]);
   });
 });

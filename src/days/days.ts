@@ -1,11 +1,20 @@
-// Days page: loads Harvest totals for a range and shows the HRworks times they need.
+// Preview page: loads Harvest totals for a range, reads the same days from the HRworks tab and
+// shows what punchline would do for each day. Read-only.
 
 import { fetchCurrentUser, fetchTimeEntries, HarvestError } from '../harvest/client.ts';
 import { dailyTotals } from '../harvest/daily-totals.ts';
+import {
+  HRWORKS_URLS,
+  pickHrworksTab,
+  type ReadDaysRequest,
+  type ReadDaysResponse,
+} from '../hrworks/messages.ts';
 import { localToday, parseTime } from '../lib/time.ts';
+import { type HrworksDay, type PlannedDay, planDays } from '../plan/plan.ts';
+import { countActions, previewCells } from '../plan/plan-cells.ts';
 import { loadSettings, validateSettings } from '../settings/settings.ts';
 import { byId, el } from '../ui/dom.ts';
-import { dayCells, defaultRange, rangeError } from './day-cells.ts';
+import { defaultRange, rangeError } from './day-cells.ts';
 import { type DayRow, harvestDays } from './harvest-days.ts';
 
 const form = byId<HTMLFormElement>('range');
@@ -23,24 +32,40 @@ function showStatus(text: string, kind: 'ok' | 'error' | '' = ''): void {
   status.className = `status ${kind}`;
 }
 
-function renderRows(rows: readonly DayRow[]): void {
+function renderRows(rows: readonly DayRow[], planned: readonly PlannedDay[] | null): void {
   table.tBodies[0]?.replaceChildren(
-    ...rows.map((row) => {
+    ...rows.map((row, i) => {
       const day = new Date(`${row.date}T00:00:00Z`);
-      const cells = dayCells(row);
+      const cells = previewCells(row, planned?.[i] ?? null);
       const tr = el('tr', '', row.weekend ? 'muted' : '');
       tr.append(
         el('td', `${weekdays.format(day)}, ${fullDate.format(day)}`),
         el('td', cells.harvest),
-        el('td', cells.start),
-        el('td', cells.end),
+        el('td', cells.hrworks),
+        el('td', cells.enter),
         el('td', cells.break),
+        el('td', cells.action, cells.actionKind),
         el('td', cells.note, cells.noteKind),
       );
       return tr;
     }),
   );
   table.hidden = false;
+}
+
+/** Reads the range from the HRworks tab. Returns an error message instead of throwing. */
+async function readHrworks(from: string, to: string): Promise<HrworksDay[] | string> {
+  const tab = pickHrworksTab(await chrome.tabs.query({ url: HRWORKS_URLS }));
+  if (tab?.id === undefined) return 'Open HRworks Arbeitszeiten in a tab to compare.';
+  const request: ReadDaysRequest = { type: 'punchline/read-days', from, to };
+  try {
+    const response = (await chrome.tabs.sendMessage(tab.id, request)) as ReadDaysResponse;
+    return response.ok ? response.days : response.error;
+  } catch {
+    // The content script isn't there, usually because the tab was open before punchline was
+    // installed or updated.
+    return 'Reload the HRworks tab and try again.';
+  }
 }
 
 form.addEventListener('submit', async (event) => {
@@ -67,9 +92,22 @@ form.addEventListener('submit', async (event) => {
       rules: settings.breakRules,
       today: localToday(),
     });
-    renderRows(rows);
-    const ready = rows.filter((row) => row.status === 'times').length;
-    showStatus(`${ready} of ${rows.length} days have hours to enter in HRworks.`, 'ok');
+    renderRows(rows, null);
+
+    showStatus('Reading HRworks…');
+    const hrworks = await readHrworks(from.value, to.value);
+    if (typeof hrworks === 'string') {
+      showStatus(`Harvest loaded. ${hrworks}`, 'error');
+      return;
+    }
+    const planned = planDays(rows, hrworks, settings.conflictMode);
+    renderRows(rows, planned);
+    const counts = countActions(planned);
+    showStatus(
+      `${counts.create} to create, ${counts.override} to override, ${counts.skip} already match, ` +
+        `${counts.flag} flagged, ${counts.check} to check manually.`,
+      'ok',
+    );
   } catch (error) {
     showStatus(error instanceof HarvestError ? error.message : 'Unexpected error.', 'error');
   } finally {
