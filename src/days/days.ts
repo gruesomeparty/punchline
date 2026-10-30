@@ -4,6 +4,8 @@
 import { fetchCurrentUser, fetchTimeEntries, HarvestError } from '../harvest/client.ts';
 import { dailyTotals } from '../harvest/daily-totals.ts';
 import {
+  type DebugLogRequest,
+  type DebugLogResponse,
   HRWORKS_URLS,
   pickHrworksTab,
   type ReadDaysRequest,
@@ -30,6 +32,8 @@ const status = byId<HTMLDivElement>('status');
 const table = byId<HTMLTableElement>('days');
 const submit = form.querySelector('button') as HTMLButtonElement;
 const writeAll = byId<HTMLButtonElement>('write-all');
+const debug = byId<HTMLDetailsElement>('debug');
+const debugText = byId<HTMLPreElement>('debug-text');
 let plannedDays: PlannedDay[] = [];
 
 const weekdays = new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' });
@@ -63,7 +67,9 @@ function renderRows(rows: readonly DayRow[], planned: readonly PlannedDay[] | nu
 }
 
 /** Sends a request to the HRworks tab. Returns an error message instead of throwing. */
-async function sendToHrworks<T>(request: ReadDaysRequest | WriteDaysRequest): Promise<T | string> {
+async function sendToHrworks<T>(
+  request: ReadDaysRequest | WriteDaysRequest | DebugLogRequest,
+): Promise<T | string> {
   const tab = pickHrworksTab(await chrome.tabs.query({ url: HRWORKS_URLS }));
   if (tab?.id === undefined) return 'Open HRworks Arbeitszeiten in a tab.';
   try {
@@ -77,6 +83,19 @@ async function sendToHrworks<T>(request: ReadDaysRequest | WriteDaysRequest): Pr
       : LOST_CONTACT;
   }
 }
+
+/** Shows the HRworks steps of the latest run, if the debug log is on in the settings. */
+async function showDebugLog(): Promise<void> {
+  if (!(await loadSettings()).debugLog) return;
+  const response = await sendToHrworks<DebugLogResponse>({ type: 'punchline/debug-log' });
+  debugText.textContent =
+    typeof response === 'string' ? response : response.lines.join('\n') || '(empty)';
+  debug.hidden = false;
+}
+
+byId('debug-copy').addEventListener('click', () => {
+  void navigator.clipboard.writeText(debugText.textContent ?? '');
+});
 
 async function readHrworks(from: string, to: string): Promise<HrworksDay[] | string> {
   const response = await sendToHrworks<ReadDaysResponse>({ type: 'punchline/read-days', from, to });
@@ -256,6 +275,7 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
   }
   writing = false;
   setWriteButtons(false);
+  await showDebugLog();
   if (days.length > 1) {
     showStatus(
       stop
@@ -300,6 +320,7 @@ form.addEventListener('submit', async (event) => {
 
     showStatus('Reading HRworks…');
     const hrworks = await readHrworks(from.value, to.value);
+    await showDebugLog();
     if (typeof hrworks === 'string') {
       showStatus(`Harvest loaded. ${hrworks}`, 'error');
       return;

@@ -29,6 +29,8 @@ export type ReadOptions = {
   timeoutMs?: number;
   /** Pause between clicks, so HRworks gets one request at a time. */
   pauseMs?: number;
+  /** Receives each page step, for the debug log. */
+  log?: (line: string) => void;
 };
 
 function byGuide(root: ParentNode, id: string): Element[] {
@@ -157,6 +159,7 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
   const timeoutMs = options.timeoutMs ?? 30_000;
   const pauseMs = options.pauseMs ?? 300;
   const pause = () => new Promise((resolve) => setTimeout(resolve, pauseMs));
+  const log = options.log ?? (() => {});
 
   /** Polls until `done` holds. Returns false after `ms`, and stops early on an unexpected page. */
   async function waitFor(done: () => boolean, ms = timeoutMs): Promise<boolean> {
@@ -170,7 +173,12 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
   }
 
   async function until(done: () => boolean, what: string): Promise<void> {
-    if (!(await waitFor(done))) throw new HrworksReadError(`HRworks didn't ${what} in time.`);
+    const started = Date.now();
+    const ok = await waitFor(done);
+    log(
+      `${ok ? 'done' : 'TIMEOUT'}: ${what} (${Date.now() - started} ms, loading=${isLoading(doc)})`,
+    );
+    if (!ok) throw new HrworksReadError(`HRworks didn't ${what} in time.`);
   }
 
   async function choose(group: string, label: string): Promise<void> {
@@ -178,6 +186,7 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     const option = [...(select?.options ?? [])].find((o) => textOf(o) === label);
     if (!select || !option) throw new HrworksReadError(`HRworks has no "${label}" to select.`);
     if (select.value === option.value) return;
+    log(`select "${label}"`);
     select.value = option.value;
     select.dispatchEvent(new Event('change', { bubbles: true }));
     await pause();
@@ -214,10 +223,12 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     for (let attempt = 1; !loaded(); attempt++) {
       const current = findWeek();
       if (current && !current.open) {
+        log(`click week "${title}" (attempt ${attempt})`);
         current.head.click();
         await pause();
       }
       if (await waitFor(loaded, timeoutMs / attempts)) break;
+      log(`week "${title}" not loaded yet (attempt ${attempt}, loading=${isLoading(doc)})`);
       if (attempt === attempts) throw new HrworksReadError(`HRworks didn't open ${title} in time.`);
     }
     return dayRows(findWeek()?.item ?? doc);
@@ -245,6 +256,7 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     if (readCredited(row, locale) === null) {
       const button = byGuide(row, GUIDE.infoButton)[0] as HTMLElement | undefined;
       if (!button) throw new HrworksReadError(`HRworks shows no details button for ${date}.`);
+      log(`click details of ${date}`);
       button.click();
       await pause();
     }
@@ -258,7 +270,7 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     return credited;
   }
 
-  return { timeoutMs, pause, waitFor, until, showMonth, openWeek, openDay, openCredited };
+  return { timeoutMs, pause, log, waitFor, until, showMonth, openWeek, openDay, openCredited };
 }
 
 /** Reads every day from `from` to `to` (inclusive), oldest first. */

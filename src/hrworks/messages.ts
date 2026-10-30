@@ -36,6 +36,19 @@ export function isWriteDaysRequest(message: unknown): message is WriteDaysReques
   return m.type === 'punchline/write-days' && Array.isArray(m.days) && m.days.every(isWriteDay);
 }
 
+/** Asks for the debug log of the latest read or write in the HRworks tab. */
+export type DebugLogRequest = { type: 'punchline/debug-log' };
+
+export type DebugLogResponse = { lines: string[] };
+
+export function isDebugLogRequest(message: unknown): message is DebugLogRequest {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    (message as Record<string, unknown>).type === 'punchline/debug-log'
+  );
+}
+
 export type ToggleOverlayRequest = { type: 'punchline/toggle-overlay' };
 
 export function isToggleOverlayRequest(message: unknown): message is ToggleOverlayRequest {

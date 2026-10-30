@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isReadDaysRequest, isWriteDaysRequest, pickHrworksTab } from './messages.ts';
+import {
+  isDebugLogRequest,
+  isReadDaysRequest,
+  isWriteDaysRequest,
+  pickHrworksTab,
+} from './messages.ts';
 
 describe('isReadDaysRequest', () => {
   it('accepts only well-formed requests', () => {
@@ -28,5 +33,13 @@ describe('pickHrworksTab', () => {
     expect(pickHrworksTab([home, times])).toBe(times);
     expect(pickHrworksTab([home])).toBe(home);
     expect(pickHrworksTab([])).toBeNull();
+  });
+});
+
+describe('isDebugLogRequest', () => {
+  it('accepts only the debug log request', () => {
+    expect(isDebugLogRequest({ type: 'punchline/debug-log' })).toBe(true);
+    expect(isDebugLogRequest({ type: 'punchline/read-days' })).toBe(false);
+    expect(isDebugLogRequest(null)).toBe(false);
   });
 });

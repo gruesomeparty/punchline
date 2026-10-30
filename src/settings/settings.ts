@@ -24,6 +24,8 @@ export type Settings = {
   previewMode: PreviewMode;
   /** Write Harvest hours on days without a work plan in HRworks, such as weekends. */
   weekendHours: boolean;
+  /** Shows the HRworks steps of the latest run in the preview, for troubleshooting. */
+  debugLog: boolean;
 };
 
 export type PreviewMode = 'sidePanel' | 'overlay';
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   conflictMode: 'flag',
   previewMode: 'sidePanel',
   weekendHours: false,
+  debugLog: false,
 };
 
 function isRule(value: unknown): value is BreakRule {
@@ -74,6 +77,7 @@ export function normalizeSettings(raw: unknown): Settings {
     conflictMode: stored.conflictMode === 'override' ? 'override' : 'flag',
     previewMode: stored.previewMode === 'overlay' ? 'overlay' : 'sidePanel',
     weekendHours: stored.weekendHours === true,
+    debugLog: stored.debugLog === true,
   };
 }
 

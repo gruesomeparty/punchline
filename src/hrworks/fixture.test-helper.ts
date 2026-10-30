@@ -217,6 +217,8 @@ export class FakeHrworks {
   ignoreYesClicks = 0;
   /** The entry HRworks asks about before deleting it. */
   asking: { day: FakeDay; index: number; start: string } | null = null;
+  /** Show the remaining saved entry's start as 00:00 after a delete, as HRworks did once. */
+  zeroStartAfterDelete = false;
   /** Validation message to show instead of saving. */
   rejectSave = '';
   /** Collapse all weeks after a save, as a full re-render would. */
@@ -356,6 +358,8 @@ export class FakeHrworks {
         const slots = (savedEntry(day) ? 1 : 0) + (day.editing ? 1 : 0);
         if (index >= slots) day.extra?.splice(index - slots, 1);
         else if (day.editing && index === slots - 1) delete day.editing;
+        const saved = savedEntry(day);
+        if (this.zeroStartAfterDelete && saved) day.draft = { ...saved, start: '00:00' };
       });
     } else if (guide === WRITE_GUIDE.save) {
       this.saves++;

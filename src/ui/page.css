@@ -172,6 +172,20 @@ th {
   width: 6em;
 }
 
+#debug {
+  margin-top: 16px;
+}
+
+#debug pre {
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+}
+
 dialog.confirm {
   border: 1px solid var(--line);
   border-radius: 12px;

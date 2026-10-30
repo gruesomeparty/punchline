@@ -110,6 +110,14 @@ function knownError(doc: Document): string | null {
 type Session = ReturnType<typeof hrworksSession>;
 type EntryInputs = { start: HTMLInputElement; end: HTMLInputElement };
 
+/** The entry inputs of a day as text, such as "2 entries: 22:28–, 22:28–", for the debug log. */
+function describeEntries(doc: Document, date: string): string {
+  const row = findRow(doc, date);
+  const all = row ? entryInputs(row) : [];
+  const times = all.map((inputs) => `${inputs.start.value}–${inputs.end.value}`).join(', ');
+  return `${all.length} entries${times ? `: ${times}` : ''}`;
+}
+
 async function waitForOneEntry(
   doc: Document,
   session: Session,
@@ -156,6 +164,7 @@ async function openNewEntry(
       throw new HrworksReadError(`HRworks doesn't allow adding a time on ${date}.`);
     }
     await session.waitFor(() => !isLoading(doc), session.timeoutMs / attempts);
+    session.log(`click + on ${date} (attempt ${attempt})`);
     add.click();
     await session.pause();
     const count = () => {
@@ -163,6 +172,7 @@ async function openNewEntry(
       return now ? entryInputs(now).length : 0;
     };
     if (await session.waitFor(() => count() > 0, session.timeoutMs / attempts)) break;
+    session.log(`no new entry on ${date} yet (loading=${isLoading(doc)})`);
     if (attempt === attempts) {
       throw new HrworksReadError(`HRworks didn't open a new entry on ${date} in time.`);
     }
@@ -203,9 +213,29 @@ async function openSavedEntry(
     const current = findRow(doc, date);
     return !!current && entryInputs(current).length > 0;
   }, `show the entries on ${date}`);
+  session.log(`${date} shows ${describeEntries(doc, date)}`);
   const removed = await removeExtraOpenEntries(doc, session, date);
   const inputs = await waitForOneEntry(doc, session, date, `show the entry on ${date}`);
-  if (inputs.start.value !== entry.start || inputs.end.value !== entry.end) {
+  session.log(`${date} shows ${describeEntries(doc, date)}`);
+  // After a delete, HRworks re-renders the remaining open entry and may show its start as
+  // 00:00. Its header still has to match the preview, and an open entry carries no hours, so
+  // only the missing end time is checked there.
+  const afterRemove = removed.length > 0;
+  if (afterRemove) {
+    await session.waitFor(() => !isLoading(doc), session.timeoutMs / 3);
+    const now = findRow(doc, date);
+    const shown = now ? readDayHeader(doc, now) : null;
+    if (JSON.stringify(shown?.entries) !== JSON.stringify(previous)) {
+      throw new HrworksReadError(
+        `HRworks changed the remaining entry on ${date} while removing the others. ` +
+          'Nothing written. Reload HRworks.',
+      );
+    }
+  }
+  const matches = afterRemove
+    ? inputs.end.value.trim() === ''
+    : inputs.start.value === entry.start && inputs.end.value === entry.end;
+  if (!matches) {
     throw new HrworksReadError(
       `HRworks shows ${inputs.start.value}–${inputs.end.value} on ${date} instead of ` +
         `${entry.start}–${entry.end}. Nothing written.`,
@@ -247,8 +277,10 @@ async function removeExtraOpenEntries(
       throw new HrworksReadError(`HRworks shows no way to remove an entry on ${date}.`);
     }
     const start = current().at(-1)?.start.value ?? '';
+    session.log(`remove entry ${start}– on ${date}: open menu`);
     toggle.click();
     await session.pause();
+    session.log('click Löschen');
     remove.click();
     await session.pause();
     // HRworks asks first, naming the entry by day and start ("… 19.08.26 22:28 löschen …").
@@ -258,6 +290,7 @@ async function removeExtraOpenEntries(
     const dialog = yes()?.closest('[role="dialog"], .modal') ?? null;
     const [y, m, d] = date.split('-');
     const asked = (dialog?.textContent ?? '').replace(/\s+/g, ' ');
+    session.log(`dialog: "${asked.trim()}"`);
     if (!asked.includes(`${d}.${m}.${y?.slice(2)} ${start}`)) {
       throw new HrworksReadError(
         `HRworks asked to remove a different entry than the one on ${date} ${start}. ` +
@@ -268,8 +301,10 @@ async function removeExtraOpenEntries(
     // clicked again while the same dialog is still open.
     for (let attempt = 1; attempt <= 3 && yes(); attempt++) {
       await session.pause();
+      session.log(`click Ja (attempt ${attempt}, loading=${isLoading(doc)})`);
       yes()?.click();
-      await session.waitFor(() => !yes(), session.timeoutMs / 3);
+      const closed = await session.waitFor(() => !yes(), session.timeoutMs / 3);
+      session.log(`dialog ${closed ? 'closed' : 'still open'}; ${describeEntries(doc, date)}`);
     }
     await session.until(() => current().length < before, `remove an extra entry on ${date}`);
   }
@@ -291,6 +326,7 @@ async function fillDay(doc: Document, session: Session, day: WriteDay): Promise<
   const { inputs, removed } = day.previous
     ? await openSavedEntry(doc, session, row, header, day)
     : { inputs: await openNewEntry(doc, session, row, header, day), removed: [] };
+  session.log(`type ${day.start}–${day.end} on ${day.date}`);
   typeInto(inputs.start, day.start);
   typeInto(inputs.end, day.end);
   await session.pause();
@@ -348,6 +384,7 @@ export async function writeDays(
   const failAll = (error: string, saved: boolean): WriteResult[] =>
     days.map(() => ({ ok: false, error, saved }));
   if (days.length === 0) return [];
+  session.log(`write ${days.map((day) => `${day.date} ${day.start}–${day.end}`).join(', ')}`);
 
   let current = days[0]?.date ?? '';
   let filled = 0;
@@ -367,6 +404,7 @@ export async function writeDays(
       }
     }
   } catch (error) {
+    session.log(`stopped at ${current}: ${message(error)}; ${describeEntries(doc, current)}`);
     const hint = filled > 0 ? ' Reload HRworks to drop the times typed so far.' : '';
     return days.map((day) => ({
       ok: false,
@@ -384,6 +422,7 @@ export async function writeDays(
     if (!save) throw new HrworksReadError('HRworks shows no Speichern button.');
     // Ignore an error text that was already on the page before this save.
     const errorBefore = knownError(doc);
+    session.log('click Speichern');
     save.click();
     await session.pause();
 
@@ -400,6 +439,7 @@ export async function writeDays(
     }, 'confirm the save');
     if (error) return failAll(error, true);
   } catch (error) {
+    session.log(`save failed: ${message(error)}`);
     return failAll(message(error), true);
   }
 
@@ -410,6 +450,7 @@ export async function writeDays(
       const checked = await checkDay(doc, session, day);
       results.push({ ok: true, day: checked, ...(extra.length > 0 ? { removed: extra } : {}) });
     } catch (error) {
+      session.log(`check of ${day.date} failed: ${message(error)}`);
       results.push({ ok: false, error: message(error), saved: true });
     }
   }

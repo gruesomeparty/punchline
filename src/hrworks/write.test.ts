@@ -157,6 +157,22 @@ describe('writeDay override', () => {
     expect(hrworks.saves).toBe(1);
   });
 
+  it('overrides the remaining open entry when HRworks shows it as 00:00 after a delete', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-03');
+    if (day) day.extra = [{ start: '22:28', end: '' }];
+    hrworks.zeroStartAfterDelete = true;
+    hrworks.render();
+    const log: string[] = [];
+    const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
+    const result = await writeDay(document, open, { ...fast, log: (line) => log.push(line) });
+    expect(result).toMatchObject({
+      ok: true,
+      day: { entries: [{ start: '08:00', end: '17:00' }] },
+    });
+    expect(log).toContain('2026-07-03 shows 1 entries: 00:00–');
+    expect(log).toContain('click Speichern');
+  });
+
   it('leaves a day with a finished extra entry alone', async () => {
     const day = hrworks.days().find((d) => d.date === '2026-07-03');
     if (day) day.extra = [{ start: '13:00', end: '17:00' }];
