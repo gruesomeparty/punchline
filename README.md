@@ -1,5 +1,7 @@
 # punchline
 
+![punchline: Harvest hours flow into HRworks](assets/banner.png)
+
 **Your Harvest hours, punched into HRworks. One click.**
 
 punchline is a Chrome extension that syncs daily working hours from Harvest (the source of
@@ -87,7 +89,8 @@ Requires [Node.js](https://nodejs.org/) 24 and
 
 ```
 .
-├── src/          # The Chrome extension (manifest, service worker, popup)
+├── src/          # The Chrome extension (manifest, service worker, popup, icons)
+├── assets/       # Repo artwork: banner, 1024px icon master (not shipped)
 ├── scripts/      # Build, packaging and policy checks
 ├── docs/         # Shareable documentation (Markdown only)
 ├── CLAUDE.md     # Context and conventions for coding agents

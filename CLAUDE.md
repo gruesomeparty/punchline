@@ -13,6 +13,7 @@ dependencies.
 - `src/manifest.json`: extension manifest (version must match `package.json`)
 - `src/background.ts`: service worker entry
 - `src/popup/`: popup UI (`popup.html`, `popup.ts`, `popup.css`)
+- `src/icons/`: extension icons (16/32/48/128). `assets/` holds the banner and the 1024px master. It isn't shipped.
 - `scripts/`: build, package and policy checks, run directly by Node (type stripping)
 - `scripts/lib/`: tested logic behind the checks
 - `docs/`: shareable documentation, Markdown only.

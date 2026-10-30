@@ -3,7 +3,7 @@ import { cp, mkdir, rm } from 'node:fs/promises';
 import { type BuildOptions, build, context } from 'esbuild';
 
 const outdir = 'dist';
-const staticFiles = ['manifest.json', 'popup/popup.html', 'popup/popup.css'];
+const staticFiles = ['manifest.json', 'popup/popup.html', 'popup/popup.css', 'icons'];
 
 const options: BuildOptions = {
   entryPoints: {
@@ -21,7 +21,7 @@ const options: BuildOptions = {
 async function copyStatic(): Promise<void> {
   for (const file of staticFiles) {
     await mkdir(`${outdir}/${file}`.replace(/\/[^/]+$/, ''), { recursive: true });
-    await cp(`src/${file}`, `${outdir}/${file}`);
+    await cp(`src/${file}`, `${outdir}/${file}`, { recursive: true });
   }
 }
 
