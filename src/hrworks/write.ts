@@ -26,6 +26,8 @@ export const WRITE_GUIDE = {
   /** The ⋮ menu of an entry, and its "Löschen" item. */
   menu: 'd90aac9a-af09-4404-ae63-8fb01160d840',
   remove: 'ed0bcd4f-48d4-44f0-b402-88cb52d8d8bc',
+  /** "Ja" in the dialog that asks whether to delete an entry. */
+  confirmYes: 'ace8e7eb-1d12-4cf1-9001-1f1a6ab49888',
 } as const;
 
 export type WriteDay = {
@@ -244,9 +246,25 @@ async function removeExtraOpenEntries(
     if (!toggle || !remove) {
       throw new HrworksReadError(`HRworks shows no way to remove an entry on ${date}.`);
     }
+    const start = current().at(-1)?.start.value ?? '';
     toggle.click();
     await session.pause();
     remove.click();
+    await session.pause();
+    // HRworks asks first, naming the entry by day and start ("… 19.08.26 22:28 löschen …").
+    // Only that exact entry may be confirmed.
+    const yes = () => byGuide(doc, WRITE_GUIDE.confirmYes)[0] as HTMLElement | undefined;
+    await session.until(() => !!yes(), `ask to remove the entry on ${date}`);
+    const dialog = yes()?.closest('[role="dialog"], .modal') ?? null;
+    const [y, m, d] = date.split('-');
+    const asked = (dialog?.textContent ?? '').replace(/\s+/g, ' ');
+    if (!asked.includes(`${d}.${m}.${y?.slice(2)} ${start}`)) {
+      throw new HrworksReadError(
+        `HRworks asked to remove a different entry than the one on ${date} ${start}. ` +
+          'Click "Nein" and reload HRworks.',
+      );
+    }
+    yes()?.click();
     await session.pause();
     await session.until(() => current().length < before, `remove an extra entry on ${date}`);
   }

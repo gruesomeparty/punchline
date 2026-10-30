@@ -213,6 +213,8 @@ export class FakeHrworks {
   ignoreWeekClicks = 0;
   /** How many "+" clicks to ignore, like HRworks does while it re-renders. */
   ignoreAddClicks = 0;
+  /** The entry HRworks asks about before deleting it. */
+  asking: { day: FakeDay; index: number; start: string } | null = null;
   /** Validation message to show instead of saving. */
   rejectSave = '';
   /** Collapse all weeks after a save, as a full re-render would. */
@@ -236,6 +238,14 @@ export class FakeHrworks {
 
   render(): void {
     showPage(document.body, pageHtml(this.year, this.month, this.weeks()));
+    if (this.asking) {
+      const [y, m, d] = this.asking.day.date.split('-');
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div role="dialog" class="modal show"><div class="modal-body"><div>Sind Sie sicher, dass Sie die Arbeitszeit ${d}.${m}.${y?.slice(2)}&nbsp;${this.asking.start} löschen möchten?</div></div>
+        <div class="modal-footer"><button type="button" data-guide-id="${WRITE_GUIDE.confirmYes}"><span> Ja</span></button></div></div>`,
+      );
+    }
     if (this.rejectSave && this.saves > 0) {
       document.body.insertAdjacentHTML('beforeend', `<div class="alert">${this.rejectSave}</div>`);
     }
@@ -324,14 +334,19 @@ export class FakeHrworks {
       });
     } else if (guide === WRITE_GUIDE.remove) {
       const entry = target?.closest(`[data-guide-id="${WRITE_GUIDE.entry}"]`);
-      const day = this.entriesOnPage().find((e) => e.element === entry)?.day;
-      const index = day
-        ? this.entriesOnPage()
-            .filter((e) => e.day === day)
-            .findIndex((e) => e.element === entry)
-        : -1;
+      const shown = this.entriesOnPage();
+      const found = shown.find((e) => e.element === entry);
+      if (!found) return;
+      const index = shown.filter((e) => e.day === found.day).indexOf(found);
       this.later(() => {
-        if (!day) return;
+        this.asking = { day: found.day, index, start: found.start };
+      });
+    } else if (guide === WRITE_GUIDE.confirmYes) {
+      const asking = this.asking;
+      this.later(() => {
+        this.asking = null;
+        if (!asking) return;
+        const { day, index } = asking;
         const slots = (savedEntry(day) ? 1 : 0) + (day.editing ? 1 : 0);
         if (index >= slots) day.extra?.splice(index - slots, 1);
         else if (day.editing && index === slots - 1) delete day.editing;
