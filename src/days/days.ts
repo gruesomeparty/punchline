@@ -95,9 +95,17 @@ async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<vo
   if (writing || (day.action !== 'create' && day.action !== 'override')) return;
   const { date } = day.harvest;
   const { start, end } = day.times;
+  // A save whose result couldn't be checked must be looked at first. After a checked save the
+  // fresh preview is what counts: writeDay refuses unless HRworks still shows what it showed.
   const earlier = wasWritten(await loadWriteLog(), date);
-  if (earlier) {
-    cell.replaceChildren(el('span', `Already written ${earlier.at.slice(0, 10)}`, 'warn'));
+  if (earlier?.result === 'unknown') {
+    cell.replaceChildren(
+      el(
+        'span',
+        `Saved ${earlier.at.slice(0, 10)} without a check. Look at HRworks first.`,
+        'warn',
+      ),
+    );
     return;
   }
   const net = formatDuration(day.harvest.netMinutes);
@@ -112,9 +120,11 @@ async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<vo
       { label: override ? 'New' : 'Enter', value: `${start}–${end}` },
       { label: 'After breaks', value: `${net} (Harvest)` },
     ],
-    note: override
-      ? 'HRworks has no undo. punchline logs the old times before it saves.'
-      : 'punchline checks the day in HRworks after saving.',
+    note:
+      (earlier ? `punchline wrote this day on ${earlier.at.slice(0, 10)}. ` : '') +
+      (override
+        ? 'HRworks has no undo. punchline logs the old times before it saves.'
+        : 'punchline checks the day in HRworks after saving.'),
     confirmLabel: override ? 'Override' : 'Write',
     icon: '../icons/icon-48.png',
   });

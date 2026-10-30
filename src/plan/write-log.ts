@@ -1,5 +1,5 @@
-// Every write punchline attempts in HRworks, kept in chrome.storage.local. It is what stops a
-// day from being written twice, and it keeps the old HRworks times before an override.
+// Every write punchline attempts in HRworks, kept in chrome.storage.local. It keeps the old
+// HRworks times before an override, and it holds back a day whose save couldn't be checked.
 
 import type { HrworksEntry } from './plan.ts';
 
