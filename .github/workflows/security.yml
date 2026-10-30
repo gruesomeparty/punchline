@@ -49,7 +49,7 @@ jobs:
     env:
       # All current dependencies are dev dependencies, but they run in CI and build the
       # shipped bundle, so scan them too.
-      TRIVY_INCLUDE_DEV_DEPS: 'true'
+      TRIVY_INCLUDE_DEV_DEPS: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

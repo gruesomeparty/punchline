@@ -13,9 +13,14 @@ dependencies.
 - `src/manifest.json`: extension manifest (version must match `package.json`)
 - `src/background.ts`: service worker entry
 - `src/popup/`: popup UI (`popup.html`, `popup.ts`, `popup.css`)
+- `src/icons/`: extension icons (16/32/48/128). `assets/` holds the banner and the 1024px master. It isn't shipped.
 - `scripts/`: build, package and policy checks, run directly by Node (type stripping)
 - `scripts/lib/`: tested logic behind the checks
-- `docs/`: local-only reference material (HAR files, screenshots). Only `*.md` is committed.
+- `docs/`: shareable documentation, Markdown only.
+- `../punchline-internal/` (private sibling repo, may be absent): HAR files, DevTools
+  recordings, HRworks page snapshots and internal prompts. Read it for reference, but never
+  copy its contents, real names, IDs or values into this public repo. Derive anonymised
+  fixtures instead.
 
 ## Commands
 
@@ -39,6 +44,8 @@ npm run verify         # everything CI runs. Must pass before you hand work back
   tested without Chrome. Keep entry points thin.
 - Keep dependencies minimal. Ask before adding one.
 - Comments explain _why_, not _what_.
+- Never put Claude session URLs (`Claude-Session:` trailers, claude.ai links) in commit
+  messages or PR descriptions.
 
 ## Security rules (non-negotiable)
 
@@ -54,6 +61,8 @@ npm run verify         # everything CI runs. Must pass before you hand work back
 
 ## Feature brief
 
+<!-- This file is PUBLIC. Paste only a shareable brief here. Keep confidential details in
+     punchline-internal and reference them by path. -->
 <!-- ===================== PASTE FEATURE PROMPT BELOW ===================== -->
 
 _Not yet provided._
