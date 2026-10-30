@@ -1,6 +1,7 @@
 // Messages between the extension pages and the content script in the HRworks tab.
 
-import type { HrworksDay } from '../plan/plan.ts';
+import type { DayRow } from '../days/harvest-days.ts';
+import type { ConflictMode, HrworksDay } from '../plan/plan.ts';
 import type { WriteDay, WriteResult } from './write.ts';
 
 export type ReadDaysRequest = { type: 'punchline/read-days'; from: string; to: string };
@@ -61,4 +62,33 @@ export function pickHrworksTab<T extends { url?: string | undefined }>(
   tabs: readonly T[],
 ): T | null {
   return tabs.find((tab) => tab.url?.includes('/working-times')) ?? tabs[0] ?? null;
+}
+
+/**
+ * Asks the background for Harvest's day rows, for the badges in HRworks. The background calls
+ * Harvest, so the token never reaches the HRworks page.
+ */
+export type HarvestRowsRequest = { type: 'punchline/harvest-rows'; from: string; to: string };
+
+export type HarvestRowsResponse =
+  | { ok: true; rows: DayRow[]; mode: ConflictMode; weekendHours: boolean }
+  | { ok: false; error: string };
+
+export function isHarvestRowsRequest(message: unknown): message is HarvestRowsRequest {
+  if (typeof message !== 'object' || message === null) return false;
+  const m = message as Record<string, unknown>;
+  return (
+    m.type === 'punchline/harvest-rows' && typeof m.from === 'string' && typeof m.to === 'string'
+  );
+}
+
+/** Asks the badges in the HRworks tab to compare the shown month with Harvest. */
+export type InlineCheckRequest = { type: 'punchline/inline-check' };
+
+export function isInlineCheckRequest(message: unknown): message is InlineCheckRequest {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    (message as Record<string, unknown>).type === 'punchline/inline-check'
+  );
 }
