@@ -49,16 +49,6 @@ export function isDebugLogRequest(message: unknown): message is DebugLogRequest 
   );
 }
 
-export type ToggleOverlayRequest = { type: 'punchline/toggle-overlay' };
-
-export function isToggleOverlayRequest(message: unknown): message is ToggleOverlayRequest {
-  return (
-    typeof message === 'object' &&
-    message !== null &&
-    (message as Record<string, unknown>).type === 'punchline/toggle-overlay'
-  );
-}
-
 /**
  * HRworks pages the content script runs on. HRworks is a single-page app that changes its URL
  * without reloading, so the script runs on every HRworks page and checks for itself whether

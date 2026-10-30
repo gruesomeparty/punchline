@@ -41,11 +41,5 @@
       "js": ["hrworks/content.js"],
       "run_at": "document_idle"
     }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["days/days.html"],
-      "matches": ["https://hrworks.de/*", "https://*.hrworks.de/*"]
-    }
   ]
 }
