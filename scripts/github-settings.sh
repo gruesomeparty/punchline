@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Applies punchline's GitHub repository settings: merge strategy, security features,
-# Actions hardening and the ruleset protecting the default branch.
+# Applies punchline's GitHub repository settings: description and topics, merge strategy,
+# security features, Actions hardening and the ruleset protecting the default branch.
 #
 # Usage: scripts/github-settings.sh [owner/repo]
 # Needs:  gh (authenticated as a repo admin). Safe to re-run.
@@ -47,6 +47,25 @@ if [[ "${visibility}" != "PUBLIC" ]]; then
   echo "  visibility. Those steps may fail below; everything else is still applied."
 fi
 echo
+
+# --- About: description and topics shown on the repo page ---------------------------------
+step "Description" \
+  api --method PATCH "repos/${REPO}" --silent \
+  -f description="Chrome extension that syncs your daily working hours from Harvest into HRworks."
+step "Topics" \
+  api --method PUT "repos/${REPO}/topics" --silent --input - <<'EOF'
+{
+  "names": [
+    "chrome-extension",
+    "manifest-v3",
+    "harvest",
+    "hrworks",
+    "time-tracking",
+    "timesheet",
+    "typescript"
+  ]
+}
+EOF
 
 # --- Merging: squash only, PR title as commit title, tidy branches -----------------------
 step "Merge settings (squash only, delete branches)" \
