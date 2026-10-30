@@ -1,5 +1,5 @@
 // Preview page: loads Harvest totals for a range, reads the same days from the HRworks tab and
-// shows what punchline would do for each day. Read-only.
+// shows what punchline would do for each day. Writing is one day at a time, after a confirm.
 
 import { fetchCurrentUser, fetchTimeEntries, HarvestError } from '../harvest/client.ts';
 import { dailyTotals } from '../harvest/daily-totals.ts';
@@ -8,10 +8,13 @@ import {
   pickHrworksTab,
   type ReadDaysRequest,
   type ReadDaysResponse,
+  type WriteDayRequest,
+  type WriteDayResponse,
 } from '../hrworks/messages.ts';
-import { localToday, parseTime } from '../lib/time.ts';
+import { formatDuration, localToday, parseTime } from '../lib/time.ts';
 import { type HrworksDay, type PlannedDay, planDays } from '../plan/plan.ts';
 import { countActions, previewCells } from '../plan/plan-cells.ts';
+import { appendWriteLog, loadWriteLog, wasWritten } from '../plan/write-log.ts';
 import { loadSettings, validateSettings } from '../settings/settings.ts';
 import { byId, el } from '../ui/dom.ts';
 import { defaultRange, rangeError } from './day-cells.ts';
@@ -46,6 +49,7 @@ function renderRows(rows: readonly DayRow[], planned: readonly PlannedDay[] | nu
         el('td', cells.break),
         el('td', cells.action, cells.actionKind),
         el('td', cells.note, cells.noteKind),
+        writeCell(planned?.[i]),
       );
       return tr;
     }),
@@ -53,18 +57,81 @@ function renderRows(rows: readonly DayRow[], planned: readonly PlannedDay[] | nu
   table.hidden = false;
 }
 
-/** Reads the range from the HRworks tab. Returns an error message instead of throwing. */
-async function readHrworks(from: string, to: string): Promise<HrworksDay[] | string> {
+/** Sends a request to the HRworks tab. Returns an error message instead of throwing. */
+async function sendToHrworks<T>(request: ReadDaysRequest | WriteDayRequest): Promise<T | string> {
   const tab = pickHrworksTab(await chrome.tabs.query({ url: HRWORKS_URLS }));
-  if (tab?.id === undefined) return 'Open HRworks Arbeitszeiten in a tab to compare.';
-  const request: ReadDaysRequest = { type: 'punchline/read-days', from, to };
+  if (tab?.id === undefined) return 'Open HRworks Arbeitszeiten in a tab.';
   try {
-    const response = (await chrome.tabs.sendMessage(tab.id, request)) as ReadDaysResponse;
-    return response.ok ? response.days : response.error;
+    return (await chrome.tabs.sendMessage(tab.id, request)) as T;
   } catch {
     // The content script isn't there, usually because the tab was open before punchline was
     // installed or updated.
     return 'Reload the HRworks tab and try again.';
+  }
+}
+
+async function readHrworks(from: string, to: string): Promise<HrworksDay[] | string> {
+  const response = await sendToHrworks<ReadDaysResponse>({ type: 'punchline/read-days', from, to });
+  if (typeof response === 'string') return response;
+  return response.ok ? response.days : response.error;
+}
+
+let writing = false;
+
+/** A "Write" button for days that would be created. Overrides come later. */
+function writeCell(day: PlannedDay | undefined): HTMLTableCellElement {
+  const cell = el('td');
+  if (day?.action !== 'create') return cell;
+  const button = el('button', 'Write', 'secondary write');
+  button.type = 'button';
+  button.addEventListener('click', () => void writeOne(day, cell));
+  cell.append(button);
+  return cell;
+}
+
+async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<void> {
+  if (writing || day.action !== 'create') return;
+  const { date } = day.harvest;
+  const { start, end } = day.times;
+  const earlier = wasWritten(await loadWriteLog(), date);
+  if (earlier) {
+    cell.replaceChildren(el('span', `Already written ${earlier.at.slice(0, 10)}`, 'warn'));
+    return;
+  }
+  const net = formatDuration(day.harvest.netMinutes);
+  if (!confirm(`Enter ${start}–${end} (${net} after breaks) on ${date} in HRworks?`)) return;
+
+  writing = true;
+  for (const button of document.querySelectorAll<HTMLButtonElement>('button.write')) {
+    button.disabled = true;
+  }
+  cell.replaceChildren(el('span', 'Writing…', 'muted'));
+  const request: WriteDayRequest = {
+    type: 'punchline/write-day',
+    day: { date, start, end, expectedMinutes: day.harvest.netMinutes },
+  };
+  const response = await sendToHrworks<WriteDayResponse>(request);
+  const result =
+    typeof response === 'string' ? { ok: false as const, error: response, saved: false } : response;
+  await appendWriteLog({
+    at: new Date().toISOString(),
+    date,
+    action: 'create',
+    start,
+    end,
+    previous: [],
+    result: result.ok ? 'ok' : result.saved ? 'unknown' : 'failed',
+    message: result.ok ? '' : result.error,
+  });
+  if (result.ok) {
+    cell.replaceChildren(el('span', 'Written and checked', 'ok'));
+  } else {
+    const hint = result.saved ? ' Check this day in HRworks.' : '';
+    cell.replaceChildren(el('span', `${result.error}${hint}`, 'error'));
+  }
+  writing = false;
+  for (const button of document.querySelectorAll<HTMLButtonElement>('button.write')) {
+    button.disabled = false;
   }
 }
 

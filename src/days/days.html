@@ -22,9 +22,10 @@
         <button type="submit">Load preview</button>
       </form>
       <p class="hint">
-        Read only. Loads your Harvest hours and, if HRworks Arbeitszeiten is open in a tab,
-        compares them with what HRworks already has. The HRworks tab will switch months and open
-        weeks while it reads. Nothing is written to HRworks yet.
+        Loads your Harvest hours and, if HRworks Arbeitszeiten is open in a tab, compares them
+        with what HRworks already has. The HRworks tab switches months and opens weeks while it
+        reads. Nothing is written until you click Write on a day and confirm. Don't edit HRworks
+        while punchline writes.
       </p>
       <div id="status" class="status" role="status"></div>
       <table id="days" hidden>
@@ -37,6 +38,7 @@
             <th>Break</th>
             <th>Action</th>
             <th>Note</th>
+            <th></th>
           </tr>
         </thead>
         <tbody></tbody>
