@@ -3,10 +3,12 @@
 
 import {
   isReadDaysRequest,
+  isToggleOverlayRequest,
   isWriteDayRequest,
   type ReadDaysResponse,
   type WriteDayResponse,
 } from './messages.ts';
+import { toggleOverlay } from './overlay.ts';
 import { HrworksReadError, readHrworksDays } from './page.ts';
 import { writeDay } from './write.ts';
 
@@ -16,6 +18,11 @@ const BUSY = 'punchline is already working in this HRworks tab.';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
+
+  if (isToggleOverlayRequest(message)) {
+    sendResponse({ open: toggleOverlay(document, chrome.runtime.getURL('days/days.html')) });
+    return false;
+  }
 
   if (isReadDaysRequest(message)) {
     const respond = (response: ReadDaysResponse) => sendResponse(response);

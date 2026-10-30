@@ -17,6 +17,7 @@ const start = byId<HTMLInputElement>('start');
 const preset = byId<HTMLSelectElement>('preset');
 const rulesBody = byId<HTMLTableElement>('rules').tBodies[0] as HTMLTableSectionElement;
 const conflict = form.elements.namedItem('conflict') as RadioNodeList;
+const preview = form.elements.namedItem('preview') as RadioNodeList;
 const status = byId<HTMLDivElement>('status');
 const testResult = byId<HTMLSpanElement>('test-result');
 
@@ -76,6 +77,7 @@ function readForm(): Settings {
     breakRules: readRules(),
     startTime: start.value,
     conflictMode: conflict.value === 'override' ? 'override' : 'flag',
+    previewMode: preview.value === 'overlay' ? 'overlay' : 'sidePanel',
   };
 }
 
@@ -84,6 +86,7 @@ function fillForm(settings: Settings): void {
   account.value = settings.harvestAccountId;
   start.value = settings.startTime;
   conflict.value = settings.conflictMode;
+  preview.value = settings.previewMode;
   preset.value = settings.breakPreset;
   renderRules(settings.breakRules);
 }

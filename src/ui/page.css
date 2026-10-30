@@ -166,3 +166,24 @@ th {
 #rules input {
   width: 6em;
 }
+
+/* The side panel is narrow: tighter spacing, and the break column goes (Enter already
+   includes it in the end time). */
+@media (max-width: 640px) {
+  body {
+    font-size: 13px;
+  }
+
+  main {
+    padding: 12px 8px 32px;
+  }
+
+  th,
+  td {
+    padding: 4px;
+  }
+
+  .col-break {
+    display: none;
+  }
+}

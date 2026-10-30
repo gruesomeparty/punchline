@@ -22,11 +22,14 @@
     "page": "options/options.html",
     "open_in_tab": true
   },
+  "side_panel": {
+    "default_path": "days/days.html"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage"],
+  "permissions": ["storage", "sidePanel"],
   "host_permissions": [
     "https://api.harvestapp.com/*",
     "https://hrworks.de/*",
@@ -37,6 +40,12 @@
       "matches": ["https://hrworks.de/*", "https://*.hrworks.de/*"],
       "js": ["hrworks/content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["days/days.html"],
+      "matches": ["https://hrworks.de/*", "https://*.hrworks.de/*"]
     }
   ]
 }
