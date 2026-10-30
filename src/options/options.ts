@@ -82,7 +82,8 @@ function readForm(): Settings {
     breakRules: readRules(),
     startTime: start.value,
     conflictMode: conflict.value === 'override' ? 'override' : 'flag',
-    previewMode: preview.value === 'overlay' ? 'overlay' : 'sidePanel',
+    previewMode:
+      preview.value === 'overlay' || preview.value === 'inline' ? preview.value : 'sidePanel',
     weekendHours: weekend.checked,
     debugLog: debugLog.checked,
     theme: theme.value === 'light' || theme.value === 'dark' ? theme.value : 'system',

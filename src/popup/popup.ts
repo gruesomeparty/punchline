@@ -1,7 +1,12 @@
 // Popup entry point. The popup closes on blur, so real work happens in the side panel, the
 // overlay on HRworks, or a full extension tab.
 
-import { HRWORKS_URLS, pickHrworksTab, type ToggleOverlayRequest } from '../hrworks/messages.ts';
+import {
+  HRWORKS_URLS,
+  type InlineCheckRequest,
+  pickHrworksTab,
+  type ToggleOverlayRequest,
+} from '../hrworks/messages.ts';
 import { loadSettings, type PreviewMode } from '../settings/settings.ts';
 import { byId } from '../ui/dom.ts';
 import { followThemeSetting } from '../ui/theme.ts';
@@ -21,13 +26,13 @@ void loadSettings().then((settings) => {
   previewMode = settings.previewMode;
 });
 
-async function openOverlay(): Promise<boolean> {
+/** Asks the HRworks tab to show the overlay or check its badges, and brings the tab forward. */
+async function showInHrworks(request: ToggleOverlayRequest | InlineCheckRequest): Promise<boolean> {
   const tab = pickHrworksTab(await chrome.tabs.query({ url: HRWORKS_URLS }));
   if (tab?.id === undefined) {
     status.textContent = 'Open HRworks Arbeitszeiten first.';
     return false;
   }
-  const request: ToggleOverlayRequest = { type: 'punchline/toggle-overlay' };
   try {
     await chrome.tabs.sendMessage(tab.id, request);
   } catch {
@@ -39,8 +44,12 @@ async function openOverlay(): Promise<boolean> {
 }
 
 byId('open-days').addEventListener('click', async () => {
-  if (previewMode === 'overlay') {
-    if (await openOverlay()) window.close();
+  if (previewMode === 'overlay' || previewMode === 'inline') {
+    const request: ToggleOverlayRequest | InlineCheckRequest =
+      previewMode === 'overlay'
+        ? { type: 'punchline/toggle-overlay' }
+        : { type: 'punchline/inline-check' };
+    if (await showInHrworks(request)) window.close();
     return;
   }
   if (windowId === undefined) return;

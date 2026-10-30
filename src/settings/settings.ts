@@ -30,7 +30,8 @@ export type Settings = {
   theme: Theme;
 };
 
-export type PreviewMode = 'sidePanel' | 'overlay';
+/** Side panel, punchline's page on top of HRworks, or badges inside HRworks' own page. */
+export type PreviewMode = 'sidePanel' | 'overlay' | 'inline';
 
 export type Theme = 'system' | 'light' | 'dark';
 
@@ -80,7 +81,10 @@ export function normalizeSettings(raw: unknown): Settings {
           : BREAK_PRESETS[breakPreset].rules,
     startTime: parseTime(startTime) === null ? DEFAULT_SETTINGS.startTime : startTime,
     conflictMode: stored.conflictMode === 'override' ? 'override' : 'flag',
-    previewMode: stored.previewMode === 'overlay' ? 'overlay' : 'sidePanel',
+    previewMode:
+      stored.previewMode === 'overlay' || stored.previewMode === 'inline'
+        ? stored.previewMode
+        : 'sidePanel',
     weekendHours: stored.weekendHours === true,
     debugLog: stored.debugLog === true,
     theme: stored.theme === 'light' || stored.theme === 'dark' ? stored.theme : 'system',

@@ -2,9 +2,13 @@
 // one request at a time.
 
 import { loadSettings } from '../settings/settings.ts';
+import { type Inline, mountInline } from './inline.ts';
 import {
   type DebugLogResponse,
+  type HarvestRowsRequest,
+  type HarvestRowsResponse,
   isDebugLogRequest,
+  isInlineCheckRequest,
   isReadDaysRequest,
   isToggleOverlayRequest,
   isWriteDaysRequest,
@@ -22,6 +26,47 @@ let trace: Trace = createTrace();
 
 const BUSY = 'punchline is already working in this HRworks tab.';
 
+/** Runs `task` unless a read or write is already going on in this tab. */
+async function exclusive(task: () => Promise<void>): Promise<boolean> {
+  if (busy) return false;
+  busy = true;
+  trace = createTrace();
+  try {
+    await task();
+  } finally {
+    busy = false;
+  }
+  return true;
+}
+
+// The badges in HRworks, while the preview mode in Settings is "In HRworks".
+let inline: Inline | null = null;
+
+function startInline(): Inline {
+  inline ??= mountInline(document, {
+    log: (line) => trace.log(line),
+    exclusive,
+    loadRows: async (from, to) => {
+      const request: HarvestRowsRequest = { type: 'punchline/harvest-rows', from, to };
+      return (await chrome.runtime.sendMessage(request)) as HarvestRowsResponse;
+    },
+  });
+  return inline;
+}
+
+async function syncInline(): Promise<void> {
+  const { previewMode } = await loadSettings();
+  if (previewMode === 'inline') {
+    startInline();
+  } else {
+    inline?.unmount();
+    inline = null;
+  }
+}
+
+void syncInline();
+chrome.storage.onChanged.addListener(() => void syncInline());
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
 
@@ -32,6 +77,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }),
     );
     return true;
+  }
+
+  if (isInlineCheckRequest(message)) {
+    sendResponse({ ok: true });
+    void startInline().check();
+    return false;
   }
 
   if (isDebugLogRequest(message)) {

@@ -6,6 +6,7 @@ import {
   formatTime,
   isIsoDate,
   isWeekend,
+  lastDayOfMonth,
   localToday,
   monthsBetween,
   parseTime,
@@ -75,5 +76,14 @@ describe('monthsBetween', () => {
       { year: 2027, month: 2 },
     ]);
     expect(monthsBetween('2026-07-01', '2026-07-31')).toEqual([{ year: 2026, month: 7 }]);
+  });
+});
+
+describe('lastDayOfMonth', () => {
+  it('handles month lengths and leap years', () => {
+    expect(lastDayOfMonth('2026-08-17')).toBe('2026-08-31');
+    expect(lastDayOfMonth('2026-02-01')).toBe('2026-02-28');
+    expect(lastDayOfMonth('2028-02-10')).toBe('2028-02-29');
+    expect(lastDayOfMonth('2026-12-05')).toBe('2026-12-31');
   });
 });
