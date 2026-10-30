@@ -105,7 +105,7 @@ step "Actions: only allowlisted actions, SHA pinning required" \
   api --method PUT "repos/${REPO}/actions/permissions" --silent --input - <<'EOF'
 { "enabled": true, "allowed_actions": "selected", "sha_pinning_required": true }
 EOF
-step "Actions: allowlist (GitHub-owned, Trivy, Scorecard)" \
+step "Actions: allowlist (GitHub-owned, Trivy, Scorecard, release-please)" \
   api --method PUT "repos/${REPO}/actions/permissions/selected-actions" --silent --input - <<'EOF'
 {
   "github_owned_allowed": true,
@@ -113,7 +113,8 @@ step "Actions: allowlist (GitHub-owned, Trivy, Scorecard)" \
   "patterns_allowed": [
     "aquasecurity/trivy-action@*",
     "aquasecurity/setup-trivy@*",
-    "ossf/scorecard-action@*"
+    "ossf/scorecard-action@*",
+    "googleapis/release-please-action@*"
   ]
 }
 EOF

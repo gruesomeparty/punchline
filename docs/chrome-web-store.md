@@ -16,8 +16,8 @@ Everything needed to list punchline in the Chrome Web Store, ready to paste into
 | Needs            | $5 one-time developer fee, privacy policy, justifications below | The developer account must be a Workspace account of that domain | Nothing                        |
 
 Unlisted works whatever email address colleagues use and keeps auto-updates. The code is public
-anyway, so hiding the listing from search is enough. Every tagged release also attaches the zip
-to a GitHub Release, which stays available as the Developer mode fallback.
+anyway, so hiding the listing from search is enough. Until the listing exists, and as a
+fallback afterwards, every release attaches the zip to a GitHub Release.
 
 ## One-time setup (maintainer)
 
@@ -34,19 +34,28 @@ to a GitHub Release, which stays available as the Developer mode fallback.
 
 ## Releasing a version
 
-1. Bump `version` in `package.json` and `src/manifest.json` (CI fails if they differ), open a
-   PR, merge it.
-2. Tag `main` and push the tag:
+Releases are cut by [release-please](https://github.com/googleapis/release-please) from the
+Conventional Commit titles on `main`:
 
-   ```sh
-   git switch main && git pull
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-3. The **Release** workflow runs the full verify, checks the tag matches the version, and
-   publishes a GitHub Release with `punchline-<version>.zip` and `SHA256SUMS.txt`.
-4. In the dashboard, **Package → Upload new package** with that zip, then submit for review.
-   Chrome updates installed copies by itself after approval.
+1. Every merge to `main` updates an open **release PR** (`chore(main): release X.Y.Z`). It bumps
+   `package.json`, `src/manifest.json` and `.release-please-manifest.json`, and writes
+   `CHANGELOG.md`. `feat` bumps the minor version, `fix` the patch version (while below 1.0).
+2. Merge the release PR when you want to ship. That tags `vX.Y.Z` and creates the GitHub
+   Release.
+3. The **Attach extension zip** job then runs the full verify on the tag and attaches
+   `punchline-X.Y.Z.zip` and `SHA256SUMS.txt` to the release. Colleagues install from
+   [the latest release](https://github.com/gruesomeparty/punchline/releases/latest).
+4. Once the store listing exists: **Package → Upload new package** with that zip, then submit
+   for review. Chrome updates installed copies by itself after approval.
+
+### One-time setup for release-please
+
+- Add `googleapis/release-please-action@*` to the allowed actions. It's in
+  `scripts/github-settings.sh`, so re-run that script.
+- Create a fine-grained personal access token for this repository only, with **Contents**,
+  **Pull requests** and **Issues** set to read and write (issues covers the release labels).
+  Save it as the repository secret `RELEASE_PLEASE_TOKEN`. GitHub Actions in this repo may not
+  open PRs with their own token, and a PR opened that way wouldn't run the required checks.
 
 ## Store listing tab
 
