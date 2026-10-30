@@ -69,3 +69,21 @@ export function addDays(date: string, days: number): string {
   day.setUTCDate(day.getUTCDate() + days);
   return day.toISOString().slice(0, 10);
 }
+
+/** The calendar months a range touches, as `{ year, month }` with month 1–12, oldest first. */
+export function monthsBetween(from: string, to: string): { year: number; month: number }[] {
+  const months: { year: number; month: number }[] = [];
+  let year = Number(from.slice(0, 4));
+  let month = Number(from.slice(5, 7));
+  const endYear = Number(to.slice(0, 4));
+  const endMonth = Number(to.slice(5, 7));
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    months.push({ year, month });
+    month++;
+    if (month > 12) {
+      month = 1;
+      year++;
+    }
+  }
+  return months;
+}

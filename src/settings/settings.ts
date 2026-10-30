@@ -2,6 +2,7 @@
 // extension except in requests to the Harvest API.
 
 import { parseTime } from '../lib/time.ts';
+import type { ConflictMode } from '../plan/plan.ts';
 import {
   BREAK_PRESETS,
   type BreakPresetId,
@@ -17,6 +18,8 @@ export type Settings = {
   breakRules: BreakRule[];
   /** Start time entered in HRworks for every day, as `HH:MM`. */
   startTime: string;
+  /** What to do when HRworks already has different hours: show them, or replace them. */
+  conflictMode: ConflictMode;
 };
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
@@ -24,7 +27,8 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   harvestAccountId: '',
   breakPreset: 'ch',
   breakRules: BREAK_PRESETS.ch.rules,
-  startTime: '07:00',
+  startTime: '08:00',
+  conflictMode: 'flag',
 };
 
 function isRule(value: unknown): value is BreakRule {
@@ -59,6 +63,7 @@ export function normalizeSettings(raw: unknown): Settings {
           ? DEFAULT_SETTINGS.breakRules
           : BREAK_PRESETS[breakPreset].rules,
     startTime: parseTime(startTime) === null ? DEFAULT_SETTINGS.startTime : startTime,
+    conflictMode: stored.conflictMode === 'override' ? 'override' : 'flag',
   };
 }
 

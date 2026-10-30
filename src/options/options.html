@@ -30,6 +30,10 @@
           <legend>HRworks times</legend>
           <label for="start">Start time for every day</label>
           <input id="start" type="time" />
+          <p class="hint">
+            Every HRworks entry starts at this time. The end time is your Harvest hours plus the
+            break.
+          </p>
 
           <label for="preset">Break rules</label>
           <select id="preset">
@@ -52,6 +56,19 @@
             HRworks takes these breaks off the time you enter, so punchline adds them on top of
             your Harvest hours. They must match the break rules in HRworks, or the check after each
             save fails.
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>When HRworks has different hours</legend>
+          <label><input type="radio" name="conflict" value="flag" /> Flag the day and leave it</label>
+          <label
+            ><input type="radio" name="conflict" value="override" /> Override it with the Harvest
+            times</label
+          >
+          <p class="hint">
+            Override logs the old HRworks times before changing anything, because HRworks has no
+            undo.
           </p>
         </fieldset>
 
