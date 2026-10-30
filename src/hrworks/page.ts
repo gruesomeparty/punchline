@@ -144,17 +144,24 @@ export async function readHrworksDays(
   to: string,
   options: ReadOptions = {},
 ): Promise<HrworksDay[]> {
-  const timeoutMs = options.timeoutMs ?? 15_000;
+  const timeoutMs = options.timeoutMs ?? 30_000;
   const pauseMs = options.pauseMs ?? 300;
   const pause = () => new Promise((resolve) => setTimeout(resolve, pauseMs));
 
-  async function until(done: () => boolean, what: string): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
+  /** Polls until `done` holds. Returns false after `ms`, and stops early on an unexpected page. */
+  async function waitFor(done: () => boolean, ms: number): Promise<boolean> {
+    const deadline = Date.now() + ms;
     while (true) {
       checkPage(doc);
-      if (done()) return;
-      if (Date.now() > deadline) throw new HrworksReadError(`HRworks didn't ${what} in time.`);
+      if (done()) return true;
+      if (Date.now() > deadline) return false;
       await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  async function until(done: () => boolean, what: string): Promise<void> {
+    if (!(await waitFor(done, timeoutMs))) {
+      throw new HrworksReadError(`HRworks didn't ${what} in time.`);
     }
   }
 
@@ -197,16 +204,24 @@ export async function readHrworksDays(
 
       // Look the week up again each time: HRworks may re-render the list after a click.
       const findWeek = () => readWeeks(doc).find((week) => week.title === title);
-      const week = findWeek();
-      if (!week) throw new HrworksReadError(`The week "${title}" disappeared from HRworks.`);
-      if (!week.open) {
-        week.head.click();
-        await pause();
-      }
-      await until(() => {
+      if (!findWeek()) throw new HrworksReadError(`The week "${title}" disappeared from HRworks.`);
+      const loaded = () => {
         const current = findWeek();
         return !!current?.open && dayRows(current.item).length > 0 && !isLoading(current.item);
-      }, `open ${title}`);
+      };
+      // HRworks sometimes ignores the first click on a week, so a week that stays closed gets
+      // clicked again. An open week that is still loading only needs more time.
+      const attempts = 3;
+      for (let attempt = 1; !loaded(); attempt++) {
+        const current = findWeek();
+        if (current && !current.open) {
+          current.head.click();
+          await pause();
+        }
+        if (await waitFor(loaded, timeoutMs / attempts)) break;
+        if (attempt === attempts)
+          throw new HrworksReadError(`HRworks didn't open ${title} in time.`);
+      }
 
       const rows = dayRows(findWeek()?.item ?? doc);
       for (const row of rows) {

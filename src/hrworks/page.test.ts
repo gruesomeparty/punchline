@@ -60,6 +60,8 @@ class FakeHrworks {
   year = 2026;
   month = 7;
   clicks = 0;
+  /** How many week clicks to ignore, like HRworks sometimes does. */
+  ignoreWeekClicks = 0;
 
   constructor() {
     this.render();
@@ -101,7 +103,9 @@ class FakeHrworks {
     const target = (event.target as Element).closest('[data-guide-id]');
     const guide = target?.getAttribute('data-guide-id');
     this.clicks++;
-    if (guide === GUIDE.weekHead) {
+    if (guide === GUIDE.weekHead && this.ignoreWeekClicks > 0) {
+      this.ignoreWeekClicks--;
+    } else if (guide === GUIDE.weekHead) {
       const title = target?.querySelector('.m-accordion__item-title')?.textContent?.trim();
       this.later(() => {
         for (const week of this.weeks()) week.open = week.title === title;
@@ -193,6 +197,15 @@ describe('readHrworksDays', () => {
       ['2026-07-01', 540],
     ]);
     expect(readWeeks(document).find((w) => w.title.startsWith('KW 28'))?.open).toBe(false);
+  });
+
+  it('clicks a week again when HRworks ignores the first click', async () => {
+    hrworks.ignoreWeekClicks = 1;
+    const days = await readHrworksDays(document, '2026-07-06', '2026-07-06', {
+      timeoutMs: 600,
+      pauseMs: 0,
+    });
+    expect(days.map((day) => day.date)).toEqual(['2026-07-06']);
   });
 
   it('stops when a day in the range is missing', async () => {
