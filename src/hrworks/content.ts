@@ -1,6 +1,7 @@
 // Content script in HRworks tabs. Reads or writes days when the punchline pages ask for it,
 // one request at a time.
 
+import { loadSettings } from '../settings/settings.ts';
 import {
   type DebugLogResponse,
   isDebugLogRequest,
@@ -25,8 +26,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
 
   if (isToggleOverlayRequest(message)) {
-    sendResponse({ open: toggleOverlay(document, chrome.runtime.getURL('days/days.html')) });
-    return false;
+    void loadSettings().then((settings) =>
+      sendResponse({
+        open: toggleOverlay(document, chrome.runtime.getURL('days/days.html'), settings.theme),
+      }),
+    );
+    return true;
   }
 
   if (isDebugLogRequest(message)) {
