@@ -24,6 +24,8 @@ describe('normalizeSettings', () => {
       startTime: '08:30',
       conflictMode: 'override',
       previewMode: 'overlay',
+      weekendHours: true,
+      debugLog: true,
     });
     expect(settings).toEqual({
       harvestToken: 'abc',
@@ -33,6 +35,8 @@ describe('normalizeSettings', () => {
       startTime: '08:30',
       conflictMode: 'override',
       previewMode: 'overlay',
+      weekendHours: true,
+      debugLog: true,
     });
   });
 

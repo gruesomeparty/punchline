@@ -21,6 +21,12 @@ export type FakeDay = {
   editing?: { start: string; end: string };
   /** HRworks disables "+" on days without a work plan. */
   addDisabled?: boolean;
+  /** Times typed into the saved entry's inputs, not saved yet. */
+  draft?: { start: string; end: string };
+  /** More entries shown in the details only, e.g. extra open entries added with "+". */
+  extra?: { start: string; end: string }[];
+  /** Show the extra entries above the saved one, as HRworks does for an earlier start. */
+  extraFirst?: boolean;
 };
 
 export type FakeWeek = { title: string; open: boolean; days: FakeDay[] };
@@ -51,20 +57,27 @@ function entryHtml(entry: { start: string; end: string }): string {
     `<div class="form-group" data-guide-id="${guide}"><div class="input-group"><input class="form-control" type="text" value="${value}"></div></div>`;
   return `<div class="row" data-guide-id="${WRITE_GUIDE.entry}"><div class="col-10"><div class="row">
     ${field(WRITE_GUIDE.start, entry.start)}${field(WRITE_GUIDE.end, entry.end)}
+  </div></div><div class="col-2"><div class="m-dropdown" data-guide-id="${WRITE_GUIDE.menu}">
+    <a href="javascript:;" class="m-dropdown__toggle"><i></i></a>
+    <ul><li data-guide-id="${WRITE_GUIDE.remove}"><a href="javascript:;"><span> Löschen</span></a></li></ul>
   </div></div></div>`;
 }
 
-/** The saved entry of a day, if its status shows a start and an end. */
+/** The saved entry of a day, if its status shows a start, and an end unless it is open. */
 function savedEntry(day: FakeDay): { start: string; end: string } | null {
   const [start, end] = (day.status ?? []).map((text) => /^(\d{2}:\d{2}) Uhr$/.exec(text)?.[1]);
-  return start && end ? { start, end } : null;
+  if (!start) return null;
+  if (end) return { start, end };
+  return day.status?.[1] === 'Offene Arbeitszeit' && !day.editing ? { start, end: '' } : null;
 }
 
 // Like HRworks, the ⓘ details show saved entries as editable inputs too.
 function details(day: FakeDay): string {
   const open = day.detailsOpen || day.editing;
-  const saved = day.detailsOpen ? savedEntry(day) : null;
-  const entries = [saved, day.editing].flatMap((entry) => (entry ? [entryHtml(entry)] : []));
+  const saved = day.detailsOpen ? (day.draft ?? savedEntry(day)) : null;
+  const extra = day.detailsOpen || day.editing ? (day.extra ?? []) : [];
+  const ordered = day.extraFirst ? [...extra, saved, day.editing] : [saved, day.editing, ...extra];
+  const entries = ordered.flatMap((entry) => (entry ? [entryHtml(entry)] : []));
   return `<div class="row${open ? '' : ' bs-hide'}">${infoPanel(day)}
     <div class="col-12">${entries.join('')}</div></div>`;
 }
@@ -199,6 +212,12 @@ export class FakeHrworks {
   clicks = 0;
   /** How many week clicks to ignore, like HRworks sometimes does. */
   ignoreWeekClicks = 0;
+  /** How many "+" clicks to ignore, like HRworks does while it re-renders. */
+  ignoreAddClicks = 0;
+  /** How many "Ja" clicks to ignore, like HRworks does while the dialog fades in. */
+  ignoreYesClicks = 0;
+  /** The entry HRworks asks about before deleting it. */
+  asking: { day: FakeDay; index: number; start: string } | null = null;
   /** Validation message to show instead of saving. */
   rejectSave = '';
   /** Collapse all weeks after a save, as a full re-render would. */
@@ -222,6 +241,14 @@ export class FakeHrworks {
 
   render(): void {
     showPage(document.body, pageHtml(this.year, this.month, this.weeks()));
+    if (this.asking) {
+      const [y, m, d] = this.asking.day.date.split('-');
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div role="dialog" class="modal show"><div class="modal-body"><div>Sind Sie sicher, dass Sie die Arbeitszeit ${d}.${m}.${y?.slice(2)}&nbsp;${this.asking.start} löschen möchten?</div></div>
+        <div class="modal-footer"><button type="button" data-guide-id="${WRITE_GUIDE.confirmYes}"><span> Ja</span></button></div></div>`,
+      );
+    }
     if (this.rejectSave && this.saves > 0) {
       document.body.insertAdjacentHTML('beforeend', `<div class="alert">${this.rejectSave}</div>`);
     }
@@ -258,7 +285,31 @@ export class FakeHrworks {
     });
   };
 
+  /** Every HRworks event sends the whole form, so typed values survive the re-render. */
+  entriesOnPage(): { day: FakeDay; start: string; end: string; element: Element }[] {
+    return byGuideIn(document, WRITE_GUIDE.entry).flatMap((element) => {
+      const holder = element.closest('.hrw-me-object-holder-without-separator-line');
+      const day = this.dayOf(holder?.querySelector(`[data-guide-id="${GUIDE.dayRow}"]`));
+      const [start = '', end = ''] = [...element.querySelectorAll('input')].map((i) => i.value);
+      return day ? [{ day, start, end, element }] : [];
+    });
+  }
+
   onClick = (event: Event): void => {
+    const shown = new Map<FakeDay, { start: string; end: string }[]>();
+    for (const { day, start, end } of this.entriesOnPage()) {
+      shown.set(day, [...(shown.get(day) ?? []), { start, end }]);
+    }
+    // Entries are shown in this order: saved (or its draft), new, extra (or extra first).
+    for (const [day, values] of shown) {
+      const rest = [...values];
+      const before = day.extraFirst && day.extra ? rest.splice(0, day.extra.length) : null;
+      const saved = savedEntry(day) ? rest.shift() : undefined;
+      if (saved) day.draft = saved;
+      const added = day.editing ? rest.shift() : undefined;
+      if (added) day.editing = added;
+      if (day.extra) day.extra = before ?? rest;
+    }
     const target = (event.target as Element).closest('[data-guide-id]');
     const guide = target?.getAttribute('data-guide-id');
     this.clicks++;
@@ -277,23 +328,51 @@ export class FakeHrworks {
     } else if ((event.target as Element).closest('a')?.querySelector('.icon-streamline-add')) {
       const day = this.dayOf(event.target as Element);
       if (!day || (event.target as Element).closest('a')?.classList.contains('disabled')) return;
+      if (this.ignoreAddClicks > 0) {
+        this.ignoreAddClicks--;
+        return;
+      }
       // HRworks prefills the start with the current time.
       this.later(() => {
         day.editing = { start: '20:26', end: '' };
       });
+    } else if (guide === WRITE_GUIDE.remove) {
+      const entry = target?.closest(`[data-guide-id="${WRITE_GUIDE.entry}"]`);
+      const shown = this.entriesOnPage();
+      const found = shown.find((e) => e.element === entry);
+      if (!found) return;
+      const index = shown.filter((e) => e.day === found.day).indexOf(found);
+      this.later(() => {
+        this.asking = { day: found.day, index, start: found.start };
+      });
+    } else if (guide === WRITE_GUIDE.confirmYes) {
+      if (this.ignoreYesClicks > 0) {
+        this.ignoreYesClicks--;
+        return;
+      }
+      const asking = this.asking;
+      this.later(() => {
+        this.asking = null;
+        if (!asking) return;
+        const { day, index } = asking;
+        const slots = (savedEntry(day) ? 1 : 0) + (day.editing ? 1 : 0);
+        const extras = day.extra?.length ?? 0;
+        if (day.extraFirst && index < extras) day.extra?.splice(index, 1);
+        else if (!day.extraFirst && index >= slots) day.extra?.splice(index - slots, 1);
+        else if (day.editing && index === (day.extraFirst ? extras : 0) + slots - 1) {
+          delete day.editing;
+        } else throw new Error('Deleted the saved entry');
+      });
     } else if (guide === WRITE_GUIDE.save) {
       this.saves++;
       // Speichern sends every entry on the page, saved or new, with whatever is in its inputs.
-      const sent = byGuideIn(document, WRITE_GUIDE.entry).flatMap((entry) => {
-        const holder = entry.closest('.hrw-me-object-holder-without-separator-line');
-        const day = this.dayOf(holder?.querySelector(`[data-guide-id="${GUIDE.dayRow}"]`));
-        const [start = '', end = ''] = [...entry.querySelectorAll('input')].map((i) => i.value);
-        return day ? [{ day, start, end }] : [];
-      });
+      const sent = this.entriesOnPage();
       this.later(() => {
         if (this.rejectSave) return;
         for (const { day, start, end } of sent) {
           delete day.editing;
+          delete day.draft;
+          delete day.extra;
           day.status = [`${start} Uhr`, `${end} Uhr`];
           day.credited = formatDuration(creditFor(start, end));
         }

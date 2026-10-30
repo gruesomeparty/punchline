@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeHrworks } from './fixture.test-helper.ts';
-import { writeDay } from './write.ts';
+import { writeDay, writeDays } from './write.ts';
 
 const fast = { timeoutMs: 1000, pauseMs: 0 };
 const workday = { date: '2026-07-06', start: '08:00', end: '17:00', expectedMinutes: 510 };
@@ -116,11 +116,187 @@ describe('writeDay override', () => {
     expect(hrworks.saves).toBe(1);
   });
 
-  it('refuses an open entry or a day without entries', async () => {
+  it('replaces an open entry', async () => {
     const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
-    expect(await writeDay(document, open, fast)).toMatchObject({ ok: false, saved: false });
+    expect(await writeDay(document, open, fast)).toMatchObject({
+      ok: true,
+      day: { entries: [{ start: '08:00', end: '17:00' }] },
+    });
+  });
+
+  it('replaces an entry added with "+" but never saved', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-06');
+    if (day) {
+      day.status = ['20:26 Uhr', 'Offene Arbeitszeit'];
+      day.editing = { start: '20:26', end: '' };
+    }
+    hrworks.render();
+    const unsaved = { ...override, date: '2026-07-06', previous: [{ start: '20:26', end: '' }] };
+    expect(await writeDay(document, unsaved, fast)).toMatchObject({ ok: true });
+  });
+
+  it('removes extra open entries, then overrides the first', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-03');
+    if (day)
+      day.extra = [
+        { start: '22:28', end: '' },
+        { start: '22:30', end: '' },
+      ];
+    hrworks.render();
+    const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
+    const result = await writeDay(document, open, fast);
+    expect(result).toMatchObject({
+      ok: true,
+      day: { entries: [{ start: '08:00', end: '17:00' }] },
+      // Removed from the bottom up.
+      removed: [
+        { start: '22:30', end: '' },
+        { start: '22:28', end: '' },
+      ],
+    });
+    expect(day?.extra ?? []).toEqual([]);
+    expect(hrworks.saves).toBe(1);
+  });
+
+  it('keeps the entry the preview showed when an extra one is listed first', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-03');
+    if (day) {
+      day.extra = [{ start: '00:00', end: '' }];
+      day.extraFirst = true;
+    }
+    hrworks.render();
+    const log: string[] = [];
+    const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
+    const result = await writeDay(document, open, { ...fast, log: (line) => log.push(line) });
+    expect(result).toMatchObject({
+      ok: true,
+      day: { entries: [{ start: '08:00', end: '17:00' }] },
+      removed: [{ start: '00:00', end: '' }],
+    });
+    expect(log).toContain('2026-07-03 shows 2 entries: 00:00–, 07:15–');
+    expect(day?.extra ?? []).toEqual([]);
+  });
+
+  it('refuses when no open entry matches the preview', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-03');
+    if (day) {
+      day.extra = [{ start: '22:28', end: '' }];
+      // The saved entry was changed in its inputs without saving, so nothing starts at 07:15.
+      day.draft = { start: '06:00', end: '' };
+    }
+    hrworks.render();
+    const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
+    expect(await writeDay(document, open, fast)).toMatchObject({
+      ok: false,
+      error: /None of the 2 open entries/,
+    });
+    expect(hrworks.saves).toBe(0);
+  });
+
+  it('leaves a day with a finished extra entry alone', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-03');
+    if (day) day.extra = [{ start: '13:00', end: '17:00' }];
+    hrworks.render();
+    const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
+    expect(await writeDay(document, open, fast)).toMatchObject({
+      ok: false,
+      saved: false,
+      error: /not all are open/,
+    });
+    expect(day?.extra).toHaveLength(1);
+    expect(hrworks.saves).toBe(0);
+  });
+
+  it('refuses a day without entries', async () => {
     const empty = { ...override, date: '2026-07-06', previous: [] };
     expect(await writeDay(document, empty, fast)).toMatchObject({ ok: false, saved: false });
     expect(hrworks.saves).toBe(0);
+  });
+});
+
+describe('writeDays', () => {
+  // Fills KW 28 with two more empty days and one with an entry.
+  beforeEach(() => {
+    const week = hrworks.data.get('2026-07')?.[1];
+    week?.days.push(
+      { date: '2026-07-07', status: ['Keine Arbeitszeit erfasst', ''] },
+      { date: '2026-07-08', status: ['Keine Arbeitszeit erfasst', ''] },
+      { date: '2026-07-09', status: ['07:00 Uhr', '18:00 Uhr'], credited: '10:00' },
+      { date: '2026-07-11', label: 'Kein Arbeitstag nach Arbeitsplan', addDisabled: true },
+    );
+    hrworks.render();
+  });
+  const create = (date: string, end = '17:00', expectedMinutes = 510) => ({
+    date,
+    start: '08:00',
+    end,
+    expectedMinutes,
+  });
+
+  it('fills in the week, saves once and checks every day', async () => {
+    const results = await writeDays(
+      document,
+      [
+        create('2026-07-06'),
+        create('2026-07-07', '16:30', 480),
+        { ...create('2026-07-09'), previous: [{ start: '07:00', end: '18:00' }] },
+      ],
+      fast,
+    );
+    expect(results.map((r) => r.ok)).toEqual([true, true, true]);
+    expect(results[1]).toMatchObject({ day: { entries: [{ start: '08:00', end: '16:30' }] } });
+    expect(results[2]).toMatchObject({ day: { creditedMinutes: 510 } });
+    expect(hrworks.saves).toBe(1);
+  });
+
+  it('clicks "+" again when HRworks ignores the click', async () => {
+    hrworks.ignoreAddClicks = 1;
+    const results = await writeDays(document, [create('2026-07-06'), create('2026-07-07')], fast);
+    expect(results.map((r) => r.ok)).toEqual([true, true]);
+    expect(hrworks.saves).toBe(1);
+  });
+
+  it('saves nothing when one day cannot be filled in', async () => {
+    const results = await writeDays(
+      document,
+      [create('2026-07-06'), create('2026-07-09'), create('2026-07-08')],
+      fast,
+    );
+    expect(results).toMatchObject([
+      { ok: false, saved: false, error: /because 2026-07-09 stopped/, blockedBy: '2026-07-09' },
+      { ok: false, saved: false, error: /already has an entry.*Reload HRworks/ },
+      { ok: false, saved: false, error: /because 2026-07-09 stopped/, blockedBy: '2026-07-09' },
+    ]);
+    expect(results[1]).not.toHaveProperty('blockedBy');
+    expect(hrworks.saves).toBe(0);
+  });
+
+  it('reports each day that HRworks credits differently', async () => {
+    const results = await writeDays(
+      document,
+      [create('2026-07-06'), create('2026-07-07', '17:00', 480)],
+      fast,
+    );
+    expect(results).toMatchObject([{ ok: true }, { ok: false, saved: true, error: /credits/ }]);
+  });
+
+  it('marks every day as saved when HRworks rejects the save', async () => {
+    hrworks.rejectSave = 'Die Arbeitszeit überlappt sich mit einer anderen Arbeitszeit.';
+    const results = await writeDays(document, [create('2026-07-06'), create('2026-07-07')], fast);
+    expect(results).toMatchObject([
+      { ok: false, saved: true, error: /überlappt/ },
+      { ok: false, saved: true, error: /überlappt/ },
+    ]);
+  });
+
+  it('writes a day without a work plan only when allowed', async () => {
+    const week = hrworks.data.get('2026-07')?.[1];
+    const saturday = week?.days.find((day) => day.date === '2026-07-11');
+    if (saturday) delete saturday.addDisabled;
+    hrworks.render();
+    const refused = await writeDay(document, create('2026-07-11'), fast);
+    expect(refused).toMatchObject({ ok: false, saved: false, error: /not a plain workday/ });
+    const allowed = await writeDay(document, { ...create('2026-07-11'), dayOff: true }, fast);
+    expect(allowed).toMatchObject({ ok: true });
   });
 });

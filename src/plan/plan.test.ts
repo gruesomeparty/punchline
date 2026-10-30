@@ -23,8 +23,13 @@ const hrworks = (overrides: Partial<HrworksDay> = {}): HrworksDay => ({
   ...overrides,
 });
 
-const plan = (row: DayRow, day: HrworksDay | null, mode: 'flag' | 'override' = 'flag') => {
-  const [planned] = planDays([row], day ? [day] : [], mode);
+const plan = (
+  row: DayRow,
+  day: HrworksDay | null,
+  mode: 'flag' | 'override' = 'flag',
+  weekendHours = false,
+) => {
+  const [planned] = planDays([row], day ? [day] : [], { mode, weekendHours });
   return planned;
 };
 
@@ -33,9 +38,18 @@ describe('planDays with Harvest hours', () => {
     expect(plan(harvest(), hrworks())).toMatchObject({ action: 'create', times });
   });
 
-  it('creates on a weekend that HRworks marks as no workday', () => {
+  it('writes weekend hours only when turned on', () => {
     const day = hrworks({ workday: false });
-    expect(plan(harvest({ weekend: true }), day)).toMatchObject({ action: 'create' });
+    const row = harvest({ weekend: true });
+    expect(plan(row, day)).toMatchObject({ action: 'none', reason: /off in the settings/ });
+    expect(plan(row, day, 'flag', true)).toMatchObject({ action: 'create' });
+    const entry = hrworks({
+      workday: false,
+      entries: [{ start: '07:00', end: '12:00' }],
+      creditedMinutes: 300,
+    });
+    expect(plan(row, entry, 'override')).toMatchObject({ action: 'flag' });
+    expect(plan(row, entry, 'override', true)).toMatchObject({ action: 'override' });
   });
 
   it('skips a day that already matches, within a minute', () => {
@@ -65,11 +79,19 @@ describe('planDays with Harvest hours', () => {
       ],
       creditedMinutes: 480,
     });
-    const open = hrworks({ entries: [{ start: '07:00', end: '' }], creditedMinutes: 0 });
     const unreadable = hrworks({ entries: [{ start: '07:00', end: '16:00' }] });
-    for (const day of [several, open, unreadable]) {
+    for (const day of [several, unreadable]) {
       expect(plan(harvest(), day, 'override')?.action).toBe('flag');
     }
+  });
+
+  it('overrides an open entry only in override mode', () => {
+    const open = hrworks({ entries: [{ start: '07:00', end: '' }], creditedMinutes: 0 });
+    expect(plan(harvest(), open)).toMatchObject({ action: 'flag', reason: /open entry/ });
+    expect(plan(harvest(), open, 'override')).toMatchObject({
+      action: 'override',
+      previous: [{ start: '07:00', end: '' }],
+    });
   });
 
   it('flags an absence on a day with Harvest hours', () => {

@@ -18,6 +18,8 @@ const preset = byId<HTMLSelectElement>('preset');
 const rulesBody = byId<HTMLTableElement>('rules').tBodies[0] as HTMLTableSectionElement;
 const conflict = form.elements.namedItem('conflict') as RadioNodeList;
 const preview = form.elements.namedItem('preview') as RadioNodeList;
+const weekend = byId<HTMLInputElement>('weekend');
+const debugLog = byId<HTMLInputElement>('debug-log');
 const status = byId<HTMLDivElement>('status');
 const testResult = byId<HTMLSpanElement>('test-result');
 
@@ -78,6 +80,8 @@ function readForm(): Settings {
     startTime: start.value,
     conflictMode: conflict.value === 'override' ? 'override' : 'flag',
     previewMode: preview.value === 'overlay' ? 'overlay' : 'sidePanel',
+    weekendHours: weekend.checked,
+    debugLog: debugLog.checked,
   };
 }
 
@@ -87,6 +91,8 @@ function fillForm(settings: Settings): void {
   start.value = settings.startTime;
   conflict.value = settings.conflictMode;
   preview.value = settings.previewMode;
+  weekend.checked = settings.weekendHours;
+  debugLog.checked = settings.debugLog;
   preset.value = settings.breakPreset;
   renderRules(settings.breakRules);
 }

@@ -27,13 +27,9 @@
         <button type="button" class="secondary" data-preset="this-month">This month</button>
         <button type="button" class="secondary" data-preset="last-month">Last month</button>
       </p>
-      <p class="hint">
-        Loads your Harvest hours and, if HRworks Arbeitszeiten is open in a tab, compares them
-        with what HRworks already has. The HRworks tab switches months and opens weeks while it
-        reads. Nothing is written until you click Write on a day and confirm. Don't edit HRworks
-        while punchline writes.
-      </p>
+      <p class="hint">Keep HRworks Arbeitszeiten open, and don't touch it while punchline works.</p>
       <div id="status" class="status" role="status"></div>
+      <button id="write-all" type="button" class="write" hidden>Write all</button>
       <table id="days" hidden>
         <thead>
           <tr>
@@ -49,6 +45,11 @@
         </thead>
         <tbody></tbody>
       </table>
+      <details id="debug" hidden>
+        <summary>Debug log of the last run in HRworks</summary>
+        <button id="debug-copy" type="button" class="secondary">Copy</button>
+        <pre id="debug-text"></pre>
+      </details>
     </main>
   </body>
 </html>

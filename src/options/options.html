@@ -73,11 +73,29 @@
         </fieldset>
 
         <fieldset>
+          <legend>Weekends</legend>
+          <label><input id="weekend" type="checkbox" /> Write weekend hours</label>
+          <p class="hint">
+            Off: weekends and other days without a work plan in HRworks are skipped. On: they are
+            written when Harvest has hours on them, if HRworks lets you add a time there.
+          </p>
+        </fieldset>
+
+        <fieldset>
           <legend>Open the preview</legend>
           <label><input type="radio" name="preview" value="sidePanel" /> In Chrome's side panel</label>
           <label><input type="radio" name="preview" value="overlay" /> On top of HRworks</label>
           <p class="hint">
             The overlay is punchline's own page in a frame, so HRworks can't read what it shows.
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Troubleshooting</legend>
+          <label><input id="debug-log" type="checkbox" /> Show debug log</label>
+          <p class="hint">
+            The preview then shows each step punchline took in HRworks during the last load or
+            write, with a button to copy it. It holds dates, times and page steps, never your token.
           </p>
         </fieldset>
 
