@@ -2,8 +2,8 @@
 // (class names, data-guide-id attributes, nesting) and nothing else. All data is made up.
 
 import { formatDuration, parseTime } from '../lib/time.ts';
+import { GERMAN } from './locales.ts';
 import { dayHeaderTexts, GUIDE } from './page.ts';
-import { MONTH_NAMES } from './parse.ts';
 import { WRITE_GUIDE } from './write.ts';
 
 export type FakeDay = {
@@ -99,7 +99,7 @@ export function weekHtml(week: FakeWeek, index: number): string {
 }
 
 // Option values are unique on the real page too (and happy-dom mixes up duplicates).
-function options(labels: string[], selected: string): string {
+function options(labels: readonly string[], selected: string): string {
   return labels
     .map(
       (label, i) =>
@@ -112,7 +112,7 @@ export function pageHtml(year: number, month: number, weeks: FakeWeek[]): string
   const years = ['2027', '2026', '2025'];
   return `<form><div class="row">
       <div class="form-group" data-guide-id="${GUIDE.monthGroup}"><label><span> Monat</span></label>
-        <select class="form-control">${options(MONTH_NAMES, MONTH_NAMES[month - 1] ?? '')}</select></div>
+        <select class="form-control">${options(GERMAN.months, GERMAN.months[month - 1] ?? '')}</select></div>
       <div class="form-group" data-guide-id="${GUIDE.yearGroup}"><label><span> Jahr</span></label>
         <select class="form-control">${options(years, String(year))}</select></div>
     </div>
@@ -240,7 +240,7 @@ export class FakeHrworks {
     const select = event.target;
     const label = select.options[select.selectedIndex]?.textContent ?? '';
     this.later(() => {
-      if (MONTH_NAMES.includes(label)) this.month = MONTH_NAMES.indexOf(label) + 1;
+      if (GERMAN.months.includes(label)) this.month = GERMAN.months.indexOf(label) + 1;
       else this.year = Number(label);
     });
   };

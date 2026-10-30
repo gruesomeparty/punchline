@@ -4,15 +4,16 @@
 
 import { formatDuration } from '../lib/time.ts';
 import type { HrworksDay } from '../plan/plan.ts';
+import { GERMAN } from './locales.ts';
 import {
   checkPage,
-  dayHeaderTexts,
   findRow,
   HrworksReadError,
   hrworksSession,
+  localeOf,
   type ReadOptions,
+  readDayHeader,
 } from './page.ts';
-import { parseDayHeader } from './parse.ts';
 
 export const WRITE_GUIDE = {
   entry: '49de136b-a470-41bf-8478-f8b8da456576',
@@ -20,9 +21,6 @@ export const WRITE_GUIDE = {
   end: '10589c97-f535-436c-9d7e-c4276bef0d75',
   save: 'e474b16c-8177-4338-b339-dbb027e2ee81',
 } as const;
-
-/** Validation messages HRworks is known to show. Anything matching stops with that message. */
-const KNOWN_ERRORS = ['überlappt'];
 
 export type WriteDay = {
   date: string;
@@ -72,9 +70,10 @@ function typeInto(input: HTMLInputElement, value: string): void {
   input.blur();
 }
 
+/** A validation message HRworks is known to show, in the page's language. */
 function knownError(doc: Document): string | null {
   const text = doc.body?.textContent ?? '';
-  const error = KNOWN_ERRORS.find((part) => text.includes(part));
+  const error = (localeOf(doc) ?? GERMAN).saveErrors.find((part) => text.includes(part));
   return error ? `HRworks rejected the entry ("…${error}…").` : null;
 }
 
@@ -88,7 +87,7 @@ export async function writeDay(
   try {
     checkPage(doc);
     const row = await session.openDay(day.date);
-    const header = parseDayHeader(dayHeaderTexts(row));
+    const header = readDayHeader(doc, row);
     if (!header) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
     if (header.entries.length > 0) {
       throw new HrworksReadError(`HRworks already has an entry on ${day.date}. Nothing written.`);
@@ -137,7 +136,7 @@ export async function writeDay(
     const want = JSON.stringify([{ start: day.start, end: day.end }]);
     const showsNewTimes = () => {
       const current = findRow(doc, day.date);
-      const shown = current ? parseDayHeader(dayHeaderTexts(current)) : null;
+      const shown = current ? readDayHeader(doc, current) : null;
       return JSON.stringify(shown?.entries) === want;
     };
     let error: string | null = null;
@@ -159,7 +158,7 @@ export async function writeDay(
           `${formatDuration(day.expectedMinutes)}. Check the break rules in the settings.`,
       );
     }
-    const after = parseDayHeader(dayHeaderTexts(findRow(doc, day.date) ?? row));
+    const after = readDayHeader(doc, findRow(doc, day.date) ?? row);
     if (!after) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
     return { ok: true, day: { ...after, creditedMinutes: credited } };
   } catch (error) {

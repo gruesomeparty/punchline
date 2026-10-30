@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { GERMAN } from './locales.ts';
 import {
-  CREDITED_LABEL,
   findDuration,
   parseClock,
   parseDayHeader,
@@ -90,12 +90,12 @@ describe('parseDayHeader', () => {
 
 describe('findDuration', () => {
   it('finds a value in the same or the next text', () => {
-    expect(findDuration([`${CREDITED_LABEL}:`, '8:30'], CREDITED_LABEL)).toBe(510);
+    expect(findDuration([`${GERMAN.credited}:`, '8:30'], GERMAN.credited)).toBe(510);
     expect(findDuration(['Sollarbeitsstunden: 8:24'], 'Sollarbeitsstunden')).toBe(504);
   });
 
   it('returns null when the label is missing', () => {
-    expect(findDuration(['Pausendauer:', '1:00'], CREDITED_LABEL)).toBeNull();
+    expect(findDuration(['Pausendauer:', '1:00'], GERMAN.credited)).toBeNull();
   });
 });
 

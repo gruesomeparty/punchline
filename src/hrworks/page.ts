@@ -5,14 +5,8 @@
 
 import { datesBetween, monthsBetween } from '../lib/time.ts';
 import type { HrworksDay } from '../plan/plan.ts';
-import {
-  CREDITED_LABEL,
-  type DayHeaderTexts,
-  findDuration,
-  MONTH_NAMES,
-  parseDayHeader,
-  parseWeekTitle,
-} from './parse.ts';
+import { GERMAN, type HrworksTexts, LOCALES, localeForMonths } from './locales.ts';
+import { type DayHeaderTexts, findDuration, parseDayHeader, parseWeekTitle } from './parse.ts';
 
 export const GUIDE = {
   monthGroup: 'b9f6866f-6fae-40b0-8492-915e82db60be',
@@ -24,8 +18,6 @@ export const GUIDE = {
   infoButton: '10e026eb-4c0b-49ae-a793-cdfb210d19ba',
   details: '1d69ad6e-2e7b-48c3-a25f-877f64d8458e',
 } as const;
-
-const SESSION_EXPIRING = 'Ihre Sitzung läuft bald ab';
 
 /** Something on the page wasn't what punchline expects. The message is shown to the user. */
 export class HrworksReadError extends Error {
@@ -63,12 +55,19 @@ function selectIn(doc: Document, group: string): HTMLSelectElement | null {
   return byGuide(doc, group)[0]?.querySelector('select') ?? null;
 }
 
+/** The HRworks language, recognised by the month names. Null if unknown or not on the page. */
+export function localeOf(doc: Document): HrworksTexts | null {
+  const month = selectIn(doc, GUIDE.monthGroup);
+  return month ? localeForMonths([...month.options].map(textOf)) : null;
+}
+
 /** The month and year the page shows, or null when this isn't the Arbeitszeiten page. */
 export function readSelectedMonth(doc: Document): { year: number; month: number } | null {
   const month = selectIn(doc, GUIDE.monthGroup);
   const year = selectIn(doc, GUIDE.yearGroup);
-  if (!month || !year) return null;
-  const monthIndex = MONTH_NAMES.indexOf(textOf(month.options[month.selectedIndex]));
+  const locale = localeOf(doc);
+  if (!month || !year || !locale) return null;
+  const monthIndex = locale.months.indexOf(textOf(month.options[month.selectedIndex]));
   const yearNumber = Number(textOf(year.options[year.selectedIndex]));
   if (monthIndex < 0 || !Number.isInteger(yearNumber)) return null;
   return { year: yearNumber, month: monthIndex + 1 };
@@ -112,28 +111,42 @@ function detailsPanel(row: Element): Element | null {
 }
 
 /** "Gutgeschriebene Arbeitsstunden" from an open details panel, or null if it isn't shown. */
-export function readCredited(row: Element): number | null {
+export function readCredited(row: Element, locale: HrworksTexts = GERMAN): number | null {
   const panel = detailsPanel(row);
   if (!panel || isHidden(panel)) return null;
   const texts = [...panel.querySelectorAll('span, div')]
     .filter((el) => el.childElementCount === 0)
     .map(textOf);
-  return findDuration(texts, CREDITED_LABEL);
+  return findDuration(texts, locale.credited, locale);
+}
+
+/** Parses a day row in the page's language. */
+export function readDayHeader(doc: Document, row: Element) {
+  return parseDayHeader(dayHeaderTexts(row), localeOf(doc) ?? GERMAN);
 }
 
 export function findRow(doc: Document, date: string): Element | null {
-  return dayRows(doc).find((row) => parseDayHeader(dayHeaderTexts(row))?.date === date) ?? null;
+  return dayRows(doc).find((row) => readDayHeader(doc, row)?.date === date) ?? null;
 }
 
 /** Stops on anything that means the page isn't in a state punchline understands. */
 export function checkPage(doc: Document): void {
-  if ((doc.body?.textContent ?? '').includes(SESSION_EXPIRING)) {
+  const text = doc.body?.textContent ?? '';
+  // The dialog can cover any page, so look for it in every language.
+  if (LOCALES.some((locale) => text.includes(locale.sessionExpiring))) {
     throw new HrworksReadError(
       'HRworks says your session is about to expire. Click "Ok" in HRworks and try again.',
     );
   }
-  if (!readSelectedMonth(doc)) {
+  if (!selectIn(doc, GUIDE.monthGroup)) {
     throw new HrworksReadError('Open Zeitwirtschaft → Arbeitszeiten in HRworks and try again.');
+  }
+  if (!localeOf(doc)) {
+    const supported = LOCALES.map((locale) => locale.language).join(', ');
+    throw new HrworksReadError(`punchline only knows HRworks in ${supported} so far.`);
+  }
+  if (!readSelectedMonth(doc)) {
+    throw new HrworksReadError('HRworks shows a month punchline does not recognise.');
   }
 }
 
@@ -171,21 +184,19 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
   }
 
   async function showMonth(year: number, month: number): Promise<void> {
+    const name = (localeOf(doc) ?? GERMAN).months[month - 1] ?? '';
     await choose(GUIDE.yearGroup, String(year));
-    await choose(GUIDE.monthGroup, MONTH_NAMES[month - 1] ?? '');
+    await choose(GUIDE.monthGroup, name);
     const prefix = `${year}-${String(month).padStart(2, '0')}`;
-    await until(
-      () => {
-        const shown = readSelectedMonth(doc);
-        if (shown?.year !== year || shown.month !== month || isLoading(doc)) return false;
-        const weeks = readWeeks(doc);
-        return (
-          weeks.length > 0 &&
-          weeks.every((week) => parseWeekTitle(week.title, year)?.from.startsWith(prefix))
-        );
-      },
-      `show ${MONTH_NAMES[month - 1]} ${year}`,
-    );
+    await until(() => {
+      const shown = readSelectedMonth(doc);
+      if (shown?.year !== year || shown.month !== month || isLoading(doc)) return false;
+      const weeks = readWeeks(doc);
+      return (
+        weeks.length > 0 &&
+        weeks.every((week) => parseWeekTitle(week.title, year)?.from.startsWith(prefix))
+      );
+    }, `show ${name} ${year}`);
   }
 
   /** Opens a week of the shown month and returns its day rows once they have loaded. */
@@ -230,7 +241,8 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
   async function openCredited(date: string): Promise<number> {
     const row = findRow(doc, date);
     if (!row) throw new HrworksReadError(`HRworks no longer shows ${date}.`);
-    if (readCredited(row) === null) {
+    const locale = localeOf(doc) ?? GERMAN;
+    if (readCredited(row, locale) === null) {
       const button = byGuide(row, GUIDE.infoButton)[0] as HTMLElement | undefined;
       if (!button) throw new HrworksReadError(`HRworks shows no details button for ${date}.`);
       button.click();
@@ -239,7 +251,7 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     let credited = null as number | null;
     await until(() => {
       const current = findRow(doc, date);
-      credited = current ? readCredited(current) : null;
+      credited = current ? readCredited(current, locale) : null;
       return credited !== null;
     }, `show the details of ${date}`);
     if (credited === null) throw new HrworksReadError(`No credited hours for ${date}.`);
@@ -267,7 +279,7 @@ export async function readHrworksDays(
       if (range.to < from || range.from > to) continue;
 
       for (const row of await session.openWeek(title)) {
-        const header = parseDayHeader(dayHeaderTexts(row));
+        const header = readDayHeader(doc, row);
         if (!header) throw new HrworksReadError(`Unexpected day in HRworks ${title}.`);
         if (header.date < range.from || header.date > range.to) {
           throw new HrworksReadError(`HRworks shows ${header.date} under ${title}.`);

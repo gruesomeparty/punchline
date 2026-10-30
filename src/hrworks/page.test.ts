@@ -111,6 +111,14 @@ describe('readHrworksDays', () => {
     );
   });
 
+  it('stops when HRworks is in a language it does not know', async () => {
+    const january = document.querySelector('option');
+    if (january) january.textContent = 'January';
+    await expect(readHrworksDays(document, '2026-07-01', '2026-07-01', fast)).rejects.toThrow(
+      /only knows HRworks in Deutsch/,
+    );
+  });
+
   it('stops when the session is about to expire', async () => {
     document.body.insertAdjacentHTML('beforeend', '<div>Ihre Sitzung läuft bald ab</div>');
     await expect(readHrworksDays(document, '2026-07-01', '2026-07-01', fast)).rejects.toThrow(
