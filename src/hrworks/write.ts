@@ -43,7 +43,13 @@ export type WriteDay = {
 export type WriteResult =
   | { ok: true; day: HrworksDay }
   /** `saved` says whether Speichern was clicked, so the user knows to check HRworks. */
-  | { ok: false; error: string; saved: boolean };
+  | {
+      ok: false;
+      error: string;
+      saved: boolean;
+      /** Set when this day was fine but another day of its week stopped the save. */
+      blockedBy?: string;
+    };
 
 function byGuide(root: ParentNode, id: string): Element[] {
   return [...root.querySelectorAll(`[data-guide-id="${id}"]`)];
@@ -176,9 +182,12 @@ async function openSavedEntry(
   if ((!header.workday && !day.dayOff) || header.absence) {
     throw new HrworksReadError(`${date} is not a plain workday in HRworks. Nothing written.`);
   }
-  // An open details block holds the saved entry; more inputs mean an unsaved one too.
-  if (entryInputs(row).length > 1) {
-    throw new HrworksReadError(`${date} already has an unsaved entry open in HRworks.`);
+  // An open details block holds the entry; more inputs mean extra entries added with "+".
+  const open = entryInputs(row).length;
+  if (open > 1) {
+    throw new HrworksReadError(
+      `${date} has ${open} entries open in HRworks, some never saved. Reload HRworks to drop them.`,
+    );
   }
   // Reading the credited hours opens the details, which hold the saved entry's inputs. An open
   // entry that was just added with "+" already shows its inputs.
@@ -290,6 +299,7 @@ export async function writeDays(
           ? `${message(error)} Nothing saved.${hint}`
           : `Not saved, because ${current} stopped the week.`,
       saved: false,
+      ...(day.date === current ? {} : { blockedBy: current }),
     }));
   }
 

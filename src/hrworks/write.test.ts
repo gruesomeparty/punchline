@@ -135,6 +135,20 @@ describe('writeDay override', () => {
     expect(await writeDay(document, unsaved, fast)).toMatchObject({ ok: true });
   });
 
+  it('refuses a day with several entries open', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-01');
+    if (day) {
+      day.detailsOpen = true;
+      day.editing = { start: '20:26', end: '' };
+    }
+    hrworks.render();
+    expect(await writeDay(document, override, fast)).toMatchObject({
+      ok: false,
+      saved: false,
+      error: /2 entries open.*Reload HRworks/,
+    });
+  });
+
   it('refuses a day without entries', async () => {
     const empty = { ...override, date: '2026-07-06', previous: [] };
     expect(await writeDay(document, empty, fast)).toMatchObject({ ok: false, saved: false });
@@ -191,10 +205,11 @@ describe('writeDays', () => {
       fast,
     );
     expect(results).toMatchObject([
-      { ok: false, saved: false, error: /because 2026-07-09 stopped/ },
+      { ok: false, saved: false, error: /because 2026-07-09 stopped/, blockedBy: '2026-07-09' },
       { ok: false, saved: false, error: /already has an entry.*Reload HRworks/ },
-      { ok: false, saved: false, error: /because 2026-07-09 stopped/ },
+      { ok: false, saved: false, error: /because 2026-07-09 stopped/, blockedBy: '2026-07-09' },
     ]);
+    expect(results[1]).not.toHaveProperty('blockedBy');
     expect(hrworks.saves).toBe(0);
   });
 

@@ -243,9 +243,11 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
       } else {
         const hint = result.saved ? ' Check this day in HRworks.' : '';
         showInCell(attempt.date, `${result.error}${hint}`, 'error');
-        stop ||= attempt.date;
+        // Name the day that stopped the week, not a day that was only held back by it.
+        stop ||= result.blockedBy ? '' : attempt.date;
       }
     }
+    if (!stop && results.some((result) => !result.ok)) stop = week[0]?.harvest.date ?? '?';
     if (stop) break;
   }
   writing = false;
