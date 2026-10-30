@@ -35,6 +35,8 @@ export type WriteDay = {
    * show exactly these, or nothing is changed.
    */
   previous?: HrworksEntry[];
+  /** The user allows writing on days without a work plan, such as weekends. */
+  dayOff?: boolean;
 };
 
 export type WriteResult =
@@ -110,12 +112,13 @@ async function openNewEntry(
   session: Session,
   row: Element,
   header: DayHeader,
-  date: string,
+  day: WriteDay,
 ): Promise<EntryInputs> {
+  const { date } = day;
   if (header.entries.length > 0) {
     throw new HrworksReadError(`HRworks already has an entry on ${date}. Nothing written.`);
   }
-  if (!header.workday || header.absence) {
+  if ((!header.workday && !day.dayOff) || header.absence) {
     throw new HrworksReadError(`${date} is not a plain workday in HRworks. Nothing written.`);
   }
   if (entryInputs(row).length > 0) {
@@ -139,9 +142,9 @@ async function openSavedEntry(
   session: Session,
   row: Element,
   header: DayHeader,
-  date: string,
-  previous: HrworksEntry[],
+  day: WriteDay,
 ): Promise<EntryInputs> {
+  const { date, previous = [] } = day;
   if (JSON.stringify(header.entries) !== JSON.stringify(previous)) {
     throw new HrworksReadError(
       `HRworks changed on ${date} since the preview. Nothing written. Load the preview again.`,
@@ -153,7 +156,7 @@ async function openSavedEntry(
       `punchline only overrides a day with one finished entry. Change ${date} in HRworks.`,
     );
   }
-  if (!header.workday || header.absence) {
+  if ((!header.workday && !day.dayOff) || header.absence) {
     throw new HrworksReadError(`${date} is not a plain workday in HRworks. Nothing written.`);
   }
   // An open details block holds the saved entry; more inputs mean an unsaved one too.
@@ -172,71 +175,147 @@ async function openSavedEntry(
   return inputs;
 }
 
+/** The new entry's inputs of a day that was filled in but not saved yet. */
+function filledInputs(doc: Document, date: string): EntryInputs | null {
+  const row = findRow(doc, date);
+  const all = row ? entryInputs(row) : [];
+  return all.length === 1 ? (all[0] ?? null) : null;
+}
+
+/** Types one day's times into HRworks without saving. */
+async function fillDay(doc: Document, session: Session, day: WriteDay): Promise<void> {
+  const row = await session.openDay(day.date);
+  const header = readDayHeader(doc, row);
+  if (!header) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
+  const inputs = day.previous
+    ? await openSavedEntry(doc, session, row, header, day)
+    : await openNewEntry(doc, session, row, header, day);
+  typeInto(inputs.start, day.start);
+  typeInto(inputs.end, day.end);
+  await session.pause();
+  if (inputs.start.value !== day.start || inputs.end.value !== day.end) {
+    throw new HrworksReadError(
+      `HRworks changed the times on ${day.date} to ${inputs.start.value}–${inputs.end.value}.`,
+    );
+  }
+}
+
+/** Checks one saved day: the header shows exactly the new times and the credited hours match. */
+async function checkDay(doc: Document, session: Session, day: WriteDay): Promise<HrworksDay> {
+  const want = JSON.stringify([{ start: day.start, end: day.end }]);
+  const showsNewTimes = () => {
+    const current = findRow(doc, day.date);
+    const shown = current ? readDayHeader(doc, current) : null;
+    return JSON.stringify(shown?.entries) === want;
+  };
+  if (!showsNewTimes()) {
+    // HRworks re-rendered the page after saving and the week closed: open it again.
+    await session.openDay(day.date);
+    await session.until(showsNewTimes, `show the saved times on ${day.date}`);
+  }
+  const credited = await session.openCredited(day.date);
+  if (Math.abs(credited - day.expectedMinutes) > 1) {
+    throw new HrworksReadError(
+      `Saved, but HRworks credits ${formatDuration(credited)} instead of ` +
+        `${formatDuration(day.expectedMinutes)}. Check the break rules in the settings.`,
+    );
+  }
+  const after = readDayHeader(doc, findRow(doc, day.date) ?? doc.body);
+  if (!after) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
+  return { ...after, creditedMinutes: credited };
+}
+
+function message(error: unknown): string {
+  return error instanceof HrworksReadError ? error.message : 'Unexpected error writing to HRworks.';
+}
+
+/**
+ * Writes the days of one HRworks week with a single Speichern, then checks each day.
+ * Returns one result per day, in the same order. Never throws.
+ *
+ * Every day is typed in first. Clicking "+" or ⓘ on a later day makes HRworks re-render, so all
+ * typed times are checked again right before Speichern. If any day can't be filled in, nothing
+ * is saved.
+ */
+export async function writeDays(
+  doc: Document,
+  days: readonly WriteDay[],
+  options: ReadOptions = {},
+): Promise<WriteResult[]> {
+  const session = hrworksSession(doc, options);
+  const failAll = (error: string, saved: boolean): WriteResult[] =>
+    days.map(() => ({ ok: false, error, saved }));
+  if (days.length === 0) return [];
+
+  let current = days[0]?.date ?? '';
+  let filled = 0;
+  try {
+    checkPage(doc);
+    for (const day of days) {
+      current = day.date;
+      await fillDay(doc, session, day);
+      filled++;
+    }
+    for (const day of days) {
+      current = day.date;
+      const inputs = filledInputs(doc, day.date);
+      if (inputs?.start.value !== day.start || inputs.end.value !== day.end) {
+        throw new HrworksReadError(`HRworks lost the times typed on ${day.date}.`);
+      }
+    }
+  } catch (error) {
+    const hint = filled > 0 ? ' Reload HRworks to drop the times typed so far.' : '';
+    return days.map((day) => ({
+      ok: false,
+      error:
+        day.date === current
+          ? `${message(error)} Nothing saved.${hint}`
+          : `Not saved, because ${current} stopped the week.`,
+      saved: false,
+    }));
+  }
+
+  try {
+    const save = byGuide(doc, WRITE_GUIDE.save)[0] as HTMLElement | undefined;
+    if (!save) throw new HrworksReadError('HRworks shows no Speichern button.');
+    // Ignore an error text that was already on the page before this save.
+    const errorBefore = knownError(doc);
+    save.click();
+    await session.pause();
+
+    // The save is done when HRworks shows an error, the last day shows its new times, or the
+    // week was re-rendered closed.
+    const last = days[days.length - 1] as WriteDay;
+    const want = JSON.stringify([{ start: last.start, end: last.end }]);
+    let error: string | null = null;
+    await session.until(() => {
+      error = errorBefore ? null : knownError(doc);
+      const row = findRow(doc, last.date);
+      const shown = row ? readDayHeader(doc, row) : null;
+      return !!error || !row || JSON.stringify(shown?.entries) === want;
+    }, 'confirm the save');
+    if (error) return failAll(error, true);
+  } catch (error) {
+    return failAll(message(error), true);
+  }
+
+  const results: WriteResult[] = [];
+  for (const day of days) {
+    try {
+      results.push({ ok: true, day: await checkDay(doc, session, day) });
+    } catch (error) {
+      results.push({ ok: false, error: message(error), saved: true });
+    }
+  }
+  return results;
+}
+
+/** Writes a single day. See writeDays. */
 export async function writeDay(
   doc: Document,
   day: WriteDay,
   options: ReadOptions = {},
 ): Promise<WriteResult> {
-  const session = hrworksSession(doc, options);
-  let saved = false;
-  try {
-    checkPage(doc);
-    const row = await session.openDay(day.date);
-    const header = readDayHeader(doc, row);
-    if (!header) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
-    const inputs = day.previous
-      ? await openSavedEntry(doc, session, row, header, day.date, day.previous)
-      : await openNewEntry(doc, session, row, header, day.date);
-
-    typeInto(inputs.start, day.start);
-    typeInto(inputs.end, day.end);
-    await session.pause();
-    if (inputs.start.value !== day.start || inputs.end.value !== day.end) {
-      throw new HrworksReadError(
-        `HRworks changed the times to ${inputs.start.value}–${inputs.end.value}. Nothing saved.`,
-      );
-    }
-
-    const save = byGuide(doc, WRITE_GUIDE.save)[0] as HTMLElement | undefined;
-    if (!save) throw new HrworksReadError('HRworks shows no Speichern button.');
-    // Ignore an error text that was already on the page before this save.
-    const errorBefore = knownError(doc);
-    saved = true;
-    save.click();
-    await session.pause();
-
-    // The save is confirmed by the day header showing exactly the new times.
-    const want = JSON.stringify([{ start: day.start, end: day.end }]);
-    const showsNewTimes = () => {
-      const current = findRow(doc, day.date);
-      const shown = current ? readDayHeader(doc, current) : null;
-      return JSON.stringify(shown?.entries) === want;
-    };
-    let error: string | null = null;
-    await session.until(() => {
-      error = errorBefore ? null : knownError(doc);
-      return !!error || showsNewTimes() || !findRow(doc, day.date);
-    }, `confirm the save on ${day.date}`);
-    if (error) throw new HrworksReadError(error);
-    if (!showsNewTimes()) {
-      // HRworks re-rendered the page after saving and the week closed: open it again.
-      await session.openDay(day.date);
-      await session.until(showsNewTimes, `show the saved times on ${day.date}`);
-    }
-
-    const credited = await session.openCredited(day.date);
-    if (Math.abs(credited - day.expectedMinutes) > 1) {
-      throw new HrworksReadError(
-        `Saved, but HRworks credits ${formatDuration(credited)} instead of ` +
-          `${formatDuration(day.expectedMinutes)}. Check the break rules in the settings.`,
-      );
-    }
-    const after = readDayHeader(doc, findRow(doc, day.date) ?? row);
-    if (!after) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
-    return { ok: true, day: { ...after, creditedMinutes: credited } };
-  } catch (error) {
-    const message =
-      error instanceof HrworksReadError ? error.message : 'Unexpected error writing to HRworks.';
-    return { ok: false, error: message, saved };
-  }
+  const [result] = await writeDays(doc, [day], options);
+  return result ?? { ok: false, error: 'Unexpected error writing to HRworks.', saved: false };
 }

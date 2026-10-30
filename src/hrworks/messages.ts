@@ -13,21 +13,27 @@ export function isReadDaysRequest(message: unknown): message is ReadDaysRequest 
   return m.type === 'punchline/read-days' && typeof m.from === 'string' && typeof m.to === 'string';
 }
 
-export type WriteDayRequest = { type: 'punchline/write-day'; day: WriteDay };
+/** Days of one HRworks week, written with a single Speichern. */
+export type WriteDaysRequest = { type: 'punchline/write-days'; days: WriteDay[] };
 
-export type WriteDayResponse = WriteResult;
+/** One result per requested day, in the same order. */
+export type WriteDaysResponse = WriteResult[];
 
-export function isWriteDayRequest(message: unknown): message is WriteDayRequest {
-  if (typeof message !== 'object' || message === null) return false;
-  const m = message as Record<string, unknown>;
-  if (m.type !== 'punchline/write-day' || typeof m.day !== 'object' || m.day === null) return false;
-  const day = m.day as Record<string, unknown>;
+function isWriteDay(value: unknown): value is WriteDay {
+  if (typeof value !== 'object' || value === null) return false;
+  const day = value as Record<string, unknown>;
   return (
     typeof day.date === 'string' &&
     typeof day.start === 'string' &&
     typeof day.end === 'string' &&
     typeof day.expectedMinutes === 'number'
   );
+}
+
+export function isWriteDaysRequest(message: unknown): message is WriteDaysRequest {
+  if (typeof message !== 'object' || message === null) return false;
+  const m = message as Record<string, unknown>;
+  return m.type === 'punchline/write-days' && Array.isArray(m.days) && m.days.every(isWriteDay);
 }
 
 export type ToggleOverlayRequest = { type: 'punchline/toggle-overlay' };

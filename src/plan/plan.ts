@@ -35,7 +35,17 @@ export type PlannedDay = { harvest: DayRow; hrworks: HrworksDay | null } & DayAc
 /** Harvest rounds to whole minutes and HRworks shows whole minutes, so allow one minute. */
 const TOLERANCE_MINUTES = 1;
 
-function decide(harvest: DayRow, hrworks: HrworksDay | null, mode: ConflictMode): DayAction {
+export type PlanOptions = {
+  mode: ConflictMode;
+  /** Write Harvest hours on days without a work plan in HRworks, such as weekends. */
+  weekendHours: boolean;
+};
+
+function decide(
+  harvest: DayRow,
+  hrworks: HrworksDay | null,
+  { mode, weekendHours }: PlanOptions,
+): DayAction {
   if (!hrworks) return { action: 'flag', reason: 'Day not found in HRworks' };
 
   if (harvest.status === 'incomplete') return { action: 'none', reason: harvest.reason };
@@ -52,11 +62,14 @@ function decide(harvest: DayRow, hrworks: HrworksDay | null, mode: ConflictMode)
   }
 
   const { times } = harvest;
+  // Days without a work plan (weekends) are only written when the user turned that on.
+  const offPlan = !hrworks.workday && !weekendHours;
   if (hrworks.entries.length === 0) {
     // An absence with Harvest hours needs a human: one of the two systems is wrong.
     if (hrworks.absence) {
       return { action: 'flag', reason: `HRworks shows "${hrworks.absence}"` };
     }
+    if (offPlan) return { action: 'none', reason: 'Weekend hours are off in the settings' };
     return { action: 'create', times };
   }
   if (hrworks.entries.length > 1) {
@@ -72,7 +85,7 @@ function decide(harvest: DayRow, hrworks: HrworksDay | null, mode: ConflictMode)
   if (Math.abs(difference) <= TOLERANCE_MINUTES) {
     return { action: 'skip', reason: 'Already matches Harvest' };
   }
-  if (mode === 'override') {
+  if (mode === 'override' && !offPlan) {
     return { action: 'override', times, previous: hrworks.entries };
   }
   return { action: 'flag', reason: 'HRworks differs from Harvest' };
@@ -81,11 +94,11 @@ function decide(harvest: DayRow, hrworks: HrworksDay | null, mode: ConflictMode)
 export function planDays(
   harvestRows: readonly DayRow[],
   hrworksDays: readonly HrworksDay[],
-  mode: ConflictMode,
+  options: PlanOptions,
 ): PlannedDay[] {
   const byDate = new Map(hrworksDays.map((day) => [day.date, day]));
   return harvestRows.map((harvest) => {
     const hrworks = byDate.get(harvest.date) ?? null;
-    return { harvest, hrworks, ...decide(harvest, hrworks, mode) };
+    return { harvest, hrworks, ...decide(harvest, hrworks, options) };
   });
 }

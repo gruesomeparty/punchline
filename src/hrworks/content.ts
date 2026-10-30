@@ -4,13 +4,13 @@
 import {
   isReadDaysRequest,
   isToggleOverlayRequest,
-  isWriteDayRequest,
+  isWriteDaysRequest,
   type ReadDaysResponse,
-  type WriteDayResponse,
+  type WriteDaysResponse,
 } from './messages.ts';
 import { toggleOverlay } from './overlay.ts';
 import { HrworksReadError, readHrworksDays } from './page.ts';
-import { writeDay } from './write.ts';
+import { writeDays } from './write.ts';
 
 let busy = false;
 
@@ -47,15 +47,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (isWriteDayRequest(message)) {
-    const respond = (response: WriteDayResponse) => sendResponse(response);
+  if (isWriteDaysRequest(message)) {
+    const respond = (response: WriteDaysResponse) => sendResponse(response);
     if (busy) {
-      respond({ ok: false, error: BUSY, saved: false });
+      respond(message.days.map(() => ({ ok: false, error: BUSY, saved: false })));
       return false;
     }
     busy = true;
-    // writeDay never throws, it reports failures in its result.
-    writeDay(document, message.day)
+    // writeDays never throws, it reports failures in its results.
+    writeDays(document, message.days)
       .then(respond)
       .finally(() => {
         busy = false;

@@ -21,6 +21,8 @@ export type FakeDay = {
   editing?: { start: string; end: string };
   /** HRworks disables "+" on days without a work plan. */
   addDisabled?: boolean;
+  /** Times typed into the saved entry's inputs, not saved yet. */
+  draft?: { start: string; end: string };
 };
 
 export type FakeWeek = { title: string; open: boolean; days: FakeDay[] };
@@ -63,7 +65,7 @@ function savedEntry(day: FakeDay): { start: string; end: string } | null {
 // Like HRworks, the ⓘ details show saved entries as editable inputs too.
 function details(day: FakeDay): string {
   const open = day.detailsOpen || day.editing;
-  const saved = day.detailsOpen ? savedEntry(day) : null;
+  const saved = day.detailsOpen ? (day.draft ?? savedEntry(day)) : null;
   const entries = [saved, day.editing].flatMap((entry) => (entry ? [entryHtml(entry)] : []));
   return `<div class="row${open ? '' : ' bs-hide'}">${infoPanel(day)}
     <div class="col-12">${entries.join('')}</div></div>`;
@@ -258,7 +260,21 @@ export class FakeHrworks {
     });
   };
 
+  /** Every HRworks event sends the whole form, so typed values survive the re-render. */
+  entriesOnPage(): { day: FakeDay; start: string; end: string }[] {
+    return byGuideIn(document, WRITE_GUIDE.entry).flatMap((entry) => {
+      const holder = entry.closest('.hrw-me-object-holder-without-separator-line');
+      const day = this.dayOf(holder?.querySelector(`[data-guide-id="${GUIDE.dayRow}"]`));
+      const [start = '', end = ''] = [...entry.querySelectorAll('input')].map((i) => i.value);
+      return day ? [{ day, start, end }] : [];
+    });
+  }
+
   onClick = (event: Event): void => {
+    for (const { day, start, end } of this.entriesOnPage()) {
+      if (day.editing) day.editing = { start, end };
+      else day.draft = { start, end };
+    }
     const target = (event.target as Element).closest('[data-guide-id]');
     const guide = target?.getAttribute('data-guide-id');
     this.clicks++;
@@ -284,16 +300,12 @@ export class FakeHrworks {
     } else if (guide === WRITE_GUIDE.save) {
       this.saves++;
       // Speichern sends every entry on the page, saved or new, with whatever is in its inputs.
-      const sent = byGuideIn(document, WRITE_GUIDE.entry).flatMap((entry) => {
-        const holder = entry.closest('.hrw-me-object-holder-without-separator-line');
-        const day = this.dayOf(holder?.querySelector(`[data-guide-id="${GUIDE.dayRow}"]`));
-        const [start = '', end = ''] = [...entry.querySelectorAll('input')].map((i) => i.value);
-        return day ? [{ day, start, end }] : [];
-      });
+      const sent = this.entriesOnPage();
       this.later(() => {
         if (this.rejectSave) return;
         for (const { day, start, end } of sent) {
           delete day.editing;
+          delete day.draft;
           day.status = [`${start} Uhr`, `${end} Uhr`];
           day.credited = formatDuration(creditFor(start, end));
         }

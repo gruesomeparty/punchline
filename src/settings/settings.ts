@@ -22,6 +22,8 @@ export type Settings = {
   conflictMode: ConflictMode;
   /** Where "Open preview" shows the preview: Chrome's side panel or on top of HRworks. */
   previewMode: PreviewMode;
+  /** Write Harvest hours on days without a work plan in HRworks, such as weekends. */
+  weekendHours: boolean;
 };
 
 export type PreviewMode = 'sidePanel' | 'overlay';
@@ -34,6 +36,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   startTime: '08:00',
   conflictMode: 'flag',
   previewMode: 'sidePanel',
+  weekendHours: false,
 };
 
 function isRule(value: unknown): value is BreakRule {
@@ -70,6 +73,7 @@ export function normalizeSettings(raw: unknown): Settings {
     startTime: parseTime(startTime) === null ? DEFAULT_SETTINGS.startTime : startTime,
     conflictMode: stored.conflictMode === 'override' ? 'override' : 'flag',
     previewMode: stored.previewMode === 'overlay' ? 'overlay' : 'sidePanel',
+    weekendHours: stored.weekendHours === true,
   };
 }
 
