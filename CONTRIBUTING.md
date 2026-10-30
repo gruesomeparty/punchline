@@ -43,6 +43,11 @@ Open `chrome://extensions`, enable _Developer mode_, click _Load unpacked_ and p
 3. Run `npm run verify` before pushing.
 4. Open a PR. CI, CodeQL, the security scans and a review must pass before merge.
 
+### GitHub settings
+
+Repository settings (merge rules, security features, Actions policy, branch ruleset) live in
+[`scripts/github-settings.sh`](scripts/github-settings.sh). A repo admin applies them with `gh`.
+
 ### Permissions
 
 The extension may only access the Harvest API and HRworks. Allowed hosts and permissions live
