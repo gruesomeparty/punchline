@@ -172,6 +172,62 @@ th {
   width: 6em;
 }
 
+dialog.confirm {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 20px;
+  width: min(380px, calc(100vw - 32px));
+  box-sizing: border-box;
+}
+
+dialog.confirm::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.confirm-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.confirm-head h2 {
+  font-size: 17px;
+  margin: 0;
+}
+
+dialog.confirm dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+dialog.confirm dt {
+  color: var(--muted);
+}
+
+dialog.confirm dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+dialog.confirm dd.old {
+  color: var(--muted);
+  font-weight: normal;
+  text-decoration: line-through;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 /* The side panel is narrow: tighter spacing, and the break column goes (Enter already
    includes it in the end time). */
 @media (max-width: 640px) {

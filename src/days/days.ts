@@ -16,6 +16,7 @@ import { type HrworksDay, type PlannedDay, planDays } from '../plan/plan.ts';
 import { countActions, previewCells } from '../plan/plan-cells.ts';
 import { appendWriteLog, loadWriteLog, wasWritten } from '../plan/write-log.ts';
 import { loadSettings, validateSettings } from '../settings/settings.ts';
+import { confirmDialog } from '../ui/confirm-dialog.ts';
 import { byId, el } from '../ui/dom.ts';
 import { defaultRange, presetRange, type RangePreset, rangeError } from './day-cells.ts';
 import { type DayRow, harvestDays } from './harvest-days.ts';
@@ -102,12 +103,22 @@ async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<vo
   const net = formatDuration(day.harvest.netMinutes);
   const previous = day.action === 'override' ? day.previous : [];
   const old = previous.map((entry) => `${entry.start}–${entry.end}`).join(', ');
-  const question =
-    day.action === 'override'
-      ? `Replace ${old} with ${start}–${end} (${net} after breaks) on ${date} in HRworks? ` +
-        'HRworks has no undo; punchline logs the old times first.'
-      : `Enter ${start}–${end} (${net} after breaks) on ${date} in HRworks?`;
-  if (!confirm(question)) return;
+  const shownDate = fullDate.format(new Date(`${date}T00:00:00Z`));
+  const override = day.action === 'override';
+  const confirmed = await confirmDialog({
+    title: override ? `Override ${shownDate} in HRworks?` : `Write ${shownDate} to HRworks?`,
+    rows: [
+      ...(override ? [{ label: 'HRworks now', value: old, old: true }] : []),
+      { label: override ? 'New' : 'Enter', value: `${start}–${end}` },
+      { label: 'After breaks', value: `${net} (Harvest)` },
+    ],
+    note: override
+      ? 'HRworks has no undo. punchline logs the old times before it saves.'
+      : 'punchline checks the day in HRworks after saving.',
+    confirmLabel: override ? 'Override' : 'Write',
+    icon: '../icons/icon-48.png',
+  });
+  if (!confirmed) return;
 
   writing = true;
   for (const button of document.querySelectorAll<HTMLButtonElement>('button.write')) {
