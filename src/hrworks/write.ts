@@ -79,13 +79,20 @@ function entryRows(row: Element): Element[] {
   return details ? byGuide(details, WRITE_GUIDE.entry) : [];
 }
 
+/** The editable entries under a day row, with the element of each entry. */
+function editableEntries(
+  row: Element,
+): { element: Element; start: HTMLInputElement; end: HTMLInputElement }[] {
+  return entryRows(row).flatMap((element) => {
+    const start = byGuide(element, WRITE_GUIDE.start)[0]?.querySelector('input');
+    const end = byGuide(element, WRITE_GUIDE.end)[0]?.querySelector('input');
+    return start && end ? [{ element, start, end }] : [];
+  });
+}
+
 /** The editable entries under a day row. */
 function entryInputs(row: Element): { start: HTMLInputElement; end: HTMLInputElement }[] {
-  return entryRows(row).flatMap((entry) => {
-    const start = byGuide(entry, WRITE_GUIDE.start)[0]?.querySelector('input');
-    const end = byGuide(entry, WRITE_GUIDE.end)[0]?.querySelector('input');
-    return start && end ? [{ start, end }] : [];
-  });
+  return editableEntries(row).map(({ start, end }) => ({ start, end }));
 }
 
 /**
@@ -214,14 +221,12 @@ async function openSavedEntry(
     return !!current && entryInputs(current).length > 0;
   }, `show the entries on ${date}`);
   session.log(`${date} shows ${describeEntries(doc, date)}`);
-  const removed = await removeExtraOpenEntries(doc, session, date);
+  const removed = await removeExtraOpenEntries(doc, session, date, entry.start);
   const inputs = await waitForOneEntry(doc, session, date, `show the entry on ${date}`);
   session.log(`${date} shows ${describeEntries(doc, date)}`);
-  // After a delete, HRworks re-renders the remaining open entry and may show its start as
-  // 00:00. Its header still has to match the preview, and an open entry carries no hours, so
-  // only the missing end time is checked there.
-  const afterRemove = removed.length > 0;
-  if (afterRemove) {
+  // Removing an entry makes HRworks re-render the day, so the header must still show the entry
+  // the preview showed.
+  if (removed.length > 0) {
     await session.waitFor(() => !isLoading(doc), session.timeoutMs / 3);
     const now = findRow(doc, date);
     const shown = now ? readDayHeader(doc, now) : null;
@@ -232,10 +237,7 @@ async function openSavedEntry(
       );
     }
   }
-  const matches = afterRemove
-    ? inputs.end.value.trim() === ''
-    : inputs.start.value === entry.start && inputs.end.value === entry.end;
-  if (!matches) {
+  if (inputs.start.value !== entry.start || inputs.end.value !== entry.end) {
     throw new HrworksReadError(
       `HRworks shows ${inputs.start.value}–${inputs.end.value} on ${date} instead of ` +
         `${entry.start}–${entry.end}. Nothing written.`,
@@ -245,14 +247,16 @@ async function openSavedEntry(
 }
 
 /**
- * The day header shows only the first entry. Extra entries without an end time, such as ones
- * added with "+" and never finished, carry no hours, so they are removed and the first one is
- * overridden. A day with a finished extra entry may be a real split shift and is left alone.
+ * The day header shows only one entry, but the details can hold more. Extra entries without an
+ * end time, such as ones added with "+" and never finished, carry no hours. So the entry the
+ * preview showed (`keep`) stays and every other open entry is removed, wherever it sits in the
+ * list. A day with a finished extra entry may be a real split shift and is left alone.
  */
 async function removeExtraOpenEntries(
   doc: Document,
   session: Session,
   date: string,
+  keep: string,
 ): Promise<HrworksEntry[]> {
   const current = () => {
     const now = findRow(doc, date);
@@ -265,19 +269,30 @@ async function removeExtraOpenEntries(
       `${date} has ${all.length} entries in HRworks and not all are open. Change it by hand.`,
     );
   }
-  const removed = all.slice(1).map((inputs) => ({ start: inputs.start.value, end: '' }));
+  if (!all.some((inputs) => inputs.start.value === keep)) {
+    throw new HrworksReadError(
+      `None of the ${all.length} open entries on ${date} starts at ${keep} like the preview. ` +
+        'Change it by hand.',
+    );
+  }
+  const removed: HrworksEntry[] = [];
   while (current().length > 1) {
     const before = current().length;
+    const inputs = current();
+    // Remove the last entry that isn't the one to keep. With two entries at the same start,
+    // the first one stays.
+    const firstKept = inputs.findIndex((entry) => entry.start.value === keep);
+    const index = inputs.findLastIndex((_, i) => i !== firstKept);
+    const start = inputs[index]?.start.value ?? '';
     const now = findRow(doc, date);
-    const last = now ? entryRows(now).at(-1) : undefined;
-    const menu = last && byGuide(last, WRITE_GUIDE.menu)[0];
+    const target = now ? editableEntries(now)[index]?.element : null;
+    const menu = target && byGuide(target, WRITE_GUIDE.menu)[0];
     const toggle = menu?.querySelector<HTMLElement>('.m-dropdown__toggle');
     const remove = menu && byGuide(menu, WRITE_GUIDE.remove)[0]?.querySelector<HTMLElement>('a');
     if (!toggle || !remove) {
       throw new HrworksReadError(`HRworks shows no way to remove an entry on ${date}.`);
     }
-    const start = current().at(-1)?.start.value ?? '';
-    session.log(`remove entry ${start}– on ${date}: open menu`);
+    session.log(`remove entry ${start}– (#${index + 1} of ${before}) on ${date}: open menu`);
     toggle.click();
     await session.pause();
     session.log('click Löschen');
@@ -297,16 +312,17 @@ async function removeExtraOpenEntries(
           'Click "Nein" and reload HRworks.',
       );
     }
-    // The dialog fades in, and a click before HRworks has wired it up does nothing. So "Ja" is
-    // clicked again while the same dialog is still open.
-    for (let attempt = 1; attempt <= 3 && yes(); attempt++) {
+    // HRworks often ignores the first click on "Ja" while the dialog fades in, and takes the
+    // next one right away. So "Ja" is clicked again every two seconds while the dialog is open.
+    for (let attempt = 1; attempt <= 5 && yes(); attempt++) {
       await session.pause();
       session.log(`click Ja (attempt ${attempt}, loading=${isLoading(doc)})`);
       yes()?.click();
-      const closed = await session.waitFor(() => !yes(), session.timeoutMs / 3);
+      const closed = await session.waitFor(() => !yes(), 2000);
       session.log(`dialog ${closed ? 'closed' : 'still open'}; ${describeEntries(doc, date)}`);
     }
     await session.until(() => current().length < before, `remove an extra entry on ${date}`);
+    removed.push({ start, end: '' });
   }
   return removed;
 }

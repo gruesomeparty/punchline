@@ -148,19 +148,22 @@ describe('writeDay override', () => {
     expect(result).toMatchObject({
       ok: true,
       day: { entries: [{ start: '08:00', end: '17:00' }] },
+      // Removed from the bottom up.
       removed: [
-        { start: '22:28', end: '' },
         { start: '22:30', end: '' },
+        { start: '22:28', end: '' },
       ],
     });
     expect(day?.extra ?? []).toEqual([]);
     expect(hrworks.saves).toBe(1);
   });
 
-  it('overrides the remaining open entry when HRworks shows it as 00:00 after a delete', async () => {
+  it('keeps the entry the preview showed when an extra one is listed first', async () => {
     const day = hrworks.days().find((d) => d.date === '2026-07-03');
-    if (day) day.extra = [{ start: '22:28', end: '' }];
-    hrworks.zeroStartAfterDelete = true;
+    if (day) {
+      day.extra = [{ start: '00:00', end: '' }];
+      day.extraFirst = true;
+    }
     hrworks.render();
     const log: string[] = [];
     const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
@@ -168,9 +171,26 @@ describe('writeDay override', () => {
     expect(result).toMatchObject({
       ok: true,
       day: { entries: [{ start: '08:00', end: '17:00' }] },
+      removed: [{ start: '00:00', end: '' }],
     });
-    expect(log).toContain('2026-07-03 shows 1 entries: 00:00–');
-    expect(log).toContain('click Speichern');
+    expect(log).toContain('2026-07-03 shows 2 entries: 00:00–, 07:15–');
+    expect(day?.extra ?? []).toEqual([]);
+  });
+
+  it('refuses when no open entry matches the preview', async () => {
+    const day = hrworks.days().find((d) => d.date === '2026-07-03');
+    if (day) {
+      day.extra = [{ start: '22:28', end: '' }];
+      // The saved entry was changed in its inputs without saving, so nothing starts at 07:15.
+      day.draft = { start: '06:00', end: '' };
+    }
+    hrworks.render();
+    const open = { ...override, date: '2026-07-03', previous: [{ start: '07:15', end: '' }] };
+    expect(await writeDay(document, open, fast)).toMatchObject({
+      ok: false,
+      error: /None of the 2 open entries/,
+    });
+    expect(hrworks.saves).toBe(0);
   });
 
   it('leaves a day with a finished extra entry alone', async () => {

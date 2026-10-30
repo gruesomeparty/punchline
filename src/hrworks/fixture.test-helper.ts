@@ -25,6 +25,8 @@ export type FakeDay = {
   draft?: { start: string; end: string };
   /** More entries shown in the details only, e.g. extra open entries added with "+". */
   extra?: { start: string; end: string }[];
+  /** Show the extra entries above the saved one, as HRworks does for an earlier start. */
+  extraFirst?: boolean;
 };
 
 export type FakeWeek = { title: string; open: boolean; days: FakeDay[] };
@@ -74,9 +76,8 @@ function details(day: FakeDay): string {
   const open = day.detailsOpen || day.editing;
   const saved = day.detailsOpen ? (day.draft ?? savedEntry(day)) : null;
   const extra = day.detailsOpen || day.editing ? (day.extra ?? []) : [];
-  const entries = [saved, day.editing, ...extra].flatMap((entry) =>
-    entry ? [entryHtml(entry)] : [],
-  );
+  const ordered = day.extraFirst ? [...extra, saved, day.editing] : [saved, day.editing, ...extra];
+  const entries = ordered.flatMap((entry) => (entry ? [entryHtml(entry)] : []));
   return `<div class="row${open ? '' : ' bs-hide'}">${infoPanel(day)}
     <div class="col-12">${entries.join('')}</div></div>`;
 }
@@ -217,8 +218,6 @@ export class FakeHrworks {
   ignoreYesClicks = 0;
   /** The entry HRworks asks about before deleting it. */
   asking: { day: FakeDay; index: number; start: string } | null = null;
-  /** Show the remaining saved entry's start as 00:00 after a delete, as HRworks did once. */
-  zeroStartAfterDelete = false;
   /** Validation message to show instead of saving. */
   rejectSave = '';
   /** Collapse all weeks after a save, as a full re-render would. */
@@ -301,14 +300,15 @@ export class FakeHrworks {
     for (const { day, start, end } of this.entriesOnPage()) {
       shown.set(day, [...(shown.get(day) ?? []), { start, end }]);
     }
-    // Entries are shown in this order: saved (or its draft), new, extra.
+    // Entries are shown in this order: saved (or its draft), new, extra (or extra first).
     for (const [day, values] of shown) {
       const rest = [...values];
+      const before = day.extraFirst && day.extra ? rest.splice(0, day.extra.length) : null;
       const saved = savedEntry(day) ? rest.shift() : undefined;
       if (saved) day.draft = saved;
       const added = day.editing ? rest.shift() : undefined;
       if (added) day.editing = added;
-      if (day.extra) day.extra = rest;
+      if (day.extra) day.extra = before ?? rest;
     }
     const target = (event.target as Element).closest('[data-guide-id]');
     const guide = target?.getAttribute('data-guide-id');
@@ -356,10 +356,12 @@ export class FakeHrworks {
         if (!asking) return;
         const { day, index } = asking;
         const slots = (savedEntry(day) ? 1 : 0) + (day.editing ? 1 : 0);
-        if (index >= slots) day.extra?.splice(index - slots, 1);
-        else if (day.editing && index === slots - 1) delete day.editing;
-        const saved = savedEntry(day);
-        if (this.zeroStartAfterDelete && saved) day.draft = { ...saved, start: '00:00' };
+        const extras = day.extra?.length ?? 0;
+        if (day.extraFirst && index < extras) day.extra?.splice(index, 1);
+        else if (!day.extraFirst && index >= slots) day.extra?.splice(index - slots, 1);
+        else if (day.editing && index === (day.extraFirst ? extras : 0) + slots - 1) {
+          delete day.editing;
+        } else throw new Error('Deleted the saved entry');
       });
     } else if (guide === WRITE_GUIDE.save) {
       this.saves++;
