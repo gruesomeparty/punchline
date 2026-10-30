@@ -127,6 +127,7 @@ rulesBody.addEventListener('input', () => {
 byId('add-rule').addEventListener('click', () => {
   renderRules([...readRules(), { afterMinutes: 0, breakMinutes: 0 }]);
   preset.value = 'custom';
+  showStatus(status, 'Unsaved changes.');
 });
 
 byId('test').addEventListener('click', async () => {
@@ -141,6 +142,15 @@ byId('test').addEventListener('click', async () => {
     const message = error instanceof HarvestError ? error.message : 'Unexpected error.';
     showStatus(testResult, message, 'error');
   }
+});
+
+// "Saved." only holds until the next edit.
+for (const type of ['input', 'change']) {
+  form.addEventListener(type, () => showStatus(status, 'Unsaved changes.'));
+}
+// Removing or adding a rule changes the form without an input event.
+byId('rules').addEventListener('click', (event) => {
+  if ((event.target as Element).closest('button')) showStatus(status, 'Unsaved changes.');
 });
 
 form.addEventListener('submit', async (event) => {

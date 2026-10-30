@@ -10,6 +10,10 @@ check a preview and hit run.
 
 > **Status:** internal tool, work in progress.
 
+<p align="center">
+  <img src="assets/screenshots/preview.png" alt="The preview in Chrome's side panel, in light and dark mode: days grouped by week, matching days folded, one day to create and one to override" width="720" />
+</p>
+
 ## Why
 
 We book project time in Harvest for billing. HRworks needs the same hours as clock-in and
@@ -70,11 +74,17 @@ Requires [Node.js](https://nodejs.org/) 24 and
 
 ## Usage
 
-1. Open HRworks and stay logged in.
-2. Click the punchline icon and choose your dates.
-3. Review the preview.
-4. Run. If anything looks off (a mismatch, an unexpected page, an expired session), punchline
+1. Open HRworks Arbeitszeiten and stay logged in.
+2. Click the punchline icon and open the preview, in Chrome's side panel by default.
+3. Pick your dates. Days that already match fold away, so you only see what needs action.
+4. Write one day, or Write all and untick any day you want to leave out. If anything looks off (a mismatch, an unexpected page, an expired session), punchline
    stops and tells you why. Runs can be resumed.
+
+<p align="center">
+  <img src="assets/screenshots/confirm-and-settings.png" alt="The Write all confirm with a Before and After row per day, next to the settings in dark mode" width="720" />
+</p>
+
+_Screenshots use made-up data._
 
 ## Safeguards
 
