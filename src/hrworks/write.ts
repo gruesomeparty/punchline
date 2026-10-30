@@ -11,6 +11,7 @@ import {
   findRow,
   HrworksReadError,
   hrworksSession,
+  isLoading,
   localeOf,
   type ReadOptions,
   readDayHeader,
@@ -124,12 +125,28 @@ async function openNewEntry(
   if (entryInputs(row).length > 0) {
     throw new HrworksReadError(`${date} already has an unsaved entry open in HRworks.`);
   }
-  const add = addButton(row);
-  if (!add || isDisabled(add)) {
-    throw new HrworksReadError(`HRworks doesn't allow adding a time on ${date}.`);
+  // HRworks ignores a click while it is still re-rendering from the previous event, for
+  // example the day typed in just before. So "+" is clicked again while the day still has no
+  // new entry, never once one appeared.
+  const attempts = 3;
+  for (let attempt = 1; ; attempt++) {
+    const current = findRow(doc, date);
+    const add = current ? addButton(current) : null;
+    if (!add || isDisabled(add)) {
+      throw new HrworksReadError(`HRworks doesn't allow adding a time on ${date}.`);
+    }
+    await session.waitFor(() => !isLoading(doc), session.timeoutMs / attempts);
+    add.click();
+    await session.pause();
+    const count = () => {
+      const now = findRow(doc, date);
+      return now ? entryInputs(now).length : 0;
+    };
+    if (await session.waitFor(() => count() > 0, session.timeoutMs / attempts)) break;
+    if (attempt === attempts) {
+      throw new HrworksReadError(`HRworks didn't open a new entry on ${date} in time.`);
+    }
   }
-  add.click();
-  await session.pause();
   return waitForOneEntry(doc, session, date, `open a new entry on ${date}`);
 }
 

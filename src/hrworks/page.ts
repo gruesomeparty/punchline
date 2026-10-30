@@ -47,7 +47,7 @@ function isHidden(element: Element): boolean {
   return false;
 }
 
-function isLoading(root: ParentNode): boolean {
+export function isLoading(root: ParentNode): boolean {
   return [...root.querySelectorAll('.hrw-loadingShimmer')].some((el) => !isHidden(el));
 }
 
@@ -258,7 +258,7 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     return credited;
   }
 
-  return { pause, waitFor, until, showMonth, openWeek, openDay, openCredited };
+  return { timeoutMs, pause, waitFor, until, showMonth, openWeek, openDay, openCredited };
 }
 
 /** Reads every day from `from` to `to` (inclusive), oldest first. */

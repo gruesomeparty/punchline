@@ -160,6 +160,13 @@ describe('writeDays', () => {
     expect(hrworks.saves).toBe(1);
   });
 
+  it('clicks "+" again when HRworks ignores the click', async () => {
+    hrworks.ignoreAddClicks = 1;
+    const results = await writeDays(document, [create('2026-07-06'), create('2026-07-07')], fast);
+    expect(results.map((r) => r.ok)).toEqual([true, true]);
+    expect(hrworks.saves).toBe(1);
+  });
+
   it('saves nothing when one day cannot be filled in', async () => {
     const results = await writeDays(
       document,

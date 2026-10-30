@@ -201,6 +201,8 @@ export class FakeHrworks {
   clicks = 0;
   /** How many week clicks to ignore, like HRworks sometimes does. */
   ignoreWeekClicks = 0;
+  /** How many "+" clicks to ignore, like HRworks does while it re-renders. */
+  ignoreAddClicks = 0;
   /** Validation message to show instead of saving. */
   rejectSave = '';
   /** Collapse all weeks after a save, as a full re-render would. */
@@ -293,6 +295,10 @@ export class FakeHrworks {
     } else if ((event.target as Element).closest('a')?.querySelector('.icon-streamline-add')) {
       const day = this.dayOf(event.target as Element);
       if (!day || (event.target as Element).closest('a')?.classList.contains('disabled')) return;
+      if (this.ignoreAddClicks > 0) {
+        this.ignoreAddClicks--;
+        return;
+      }
       // HRworks prefills the start with the current time.
       this.later(() => {
         day.editing = { start: '20:26', end: '' };
