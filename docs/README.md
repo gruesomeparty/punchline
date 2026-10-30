@@ -1,19 +1,30 @@
 # docs/
 
-This folder holds **local-only reference material** for development, for example:
+Shareable project documentation. **This repository is public: only Markdown is committed here.**
 
-- **HAR files** (`*.har`) recorded from Harvest or HRworks in DevTools
-- **DevTools Recorder exports** (`*.json`, `*.js`)
-- **HTML snapshots** of HRworks pages (`*.html`, `*.mhtml`)
-- **Screenshots** of HRworks or Harvest (`*.png`, `*.jpg`, …)
+## Sensitive material lives elsewhere
+
+HAR files, DevTools Recorder exports, HTML snapshots, screenshots of HRworks or Harvest, and
+internal prompts contain session cookies, tokens, names and working hours. They live in the
+private **`punchline-internal`** repository, cloned next to this one:
+
+```sh
+cd ..   # the folder that contains punchline/
+git clone https://github.com/gruesomeparty/punchline-internal.git
+```
+
+```
+work/
+├── punchline/            # this repo (public)
+└── punchline-internal/   # private: recordings, HAR files, snapshots, prompts
+```
 
 > [!CAUTION]
-> These files contain session cookies, access tokens, names, working hours and other
-> personal data. **They must never be committed.**
+> Even in the private repo, strip live cookies and tokens from HAR files before committing.
+> A private repo limits who can read data. Session secrets should still not be stored there.
 
-Everything in `docs/` except Markdown files is git-ignored, and both the pre-commit hook
-and CI (`npm run check:files`) reject such files even if they are force-added.
+## Safety net
 
-Before you share an excerpt in an issue or PR, strip cookies, tokens, names and IDs.
-
-Markdown documentation (`*.md`) may be committed here as usual.
+If such a file ends up in this folder anyway, it is git-ignored (everything except `*.md`),
+and both the pre-commit hook and CI (`npm run check:files`) reject it even if force-added.
+Before you quote an excerpt in an issue or PR, strip cookies, tokens, names and IDs.

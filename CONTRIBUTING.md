@@ -52,8 +52,9 @@ its own PR with a justification.
 ### Real data
 
 Never commit real tokens, HAR files, HRworks screenshots or HTML snapshots. Use small,
-anonymised fixtures in tests. Put local reference material in `docs/` (git-ignored except
-Markdown).
+anonymised fixtures in tests. Recordings and snapshots live in the private
+`punchline-internal` repo. Ask for access and clone it next to this one (see
+[`docs/README.md`](docs/README.md)).
 
 ### Dependencies
 
