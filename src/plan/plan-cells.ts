@@ -53,20 +53,6 @@ export function planCells(day: PlannedDay): PlanCells {
   };
 }
 
-/** Counts per action, for the summary line above the table. */
-export function countActions(days: readonly PlannedDay[]): Record<ActionKind, number> {
-  const counts: Record<ActionKind, number> = {
-    create: 0,
-    override: 0,
-    skip: 0,
-    flag: 0,
-    check: 0,
-    none: 0,
-  };
-  for (const day of days) counts[day.action]++;
-  return counts;
-}
-
 export type CellKind = '' | 'ok' | 'muted' | 'warn' | 'error';
 
 const ACTION_KINDS: Record<ActionKind, CellKind> = {

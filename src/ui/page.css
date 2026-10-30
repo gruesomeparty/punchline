@@ -1,26 +1,52 @@
+/* Shared look of punchline's pages: calm, Mac-like, light and dark. Every colour is a token
+   here. The theme follows the system unless Settings sets data-theme on <html>. */
+
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --fg: #1d1d1f;
   --muted: #6e6e73;
-  --bg: #ffffff;
-  --line: #d2d2d7;
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --line: #e3e3e8;
+  --field: #ffffff;
   --accent: #5b4fd6;
+  --on-accent: #ffffff;
   --ok: #1b7f3b;
   --warn: #9a5b00;
   --error: #c42b1c;
+  --radius: 10px;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --fg: #f5f5f7;
     --muted: #a1a1a6;
-    --bg: #1c1c1e;
+    --bg: #1e1e1e;
+    --card: #2a2a2a;
     --line: #3a3a3c;
+    --field: #1e1e1e;
     --accent: #a9a1ff;
+    --on-accent: #1e1e1e;
     --ok: #5fd07c;
     --warn: #f0b24a;
     --error: #ff6b5e;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --fg: #f5f5f7;
+  --muted: #a1a1a6;
+  --bg: #1e1e1e;
+  --card: #2a2a2a;
+  --line: #3a3a3c;
+  --field: #1e1e1e;
+  --accent: #a9a1ff;
+  --on-accent: #1e1e1e;
+  --ok: #5fd07c;
+  --warn: #f0b24a;
+  --error: #ff6b5e;
 }
 
 body {
@@ -28,36 +54,31 @@ body {
   background: var(--bg);
   color: var(--fg);
   font:
-    15px / 1.5 system-ui,
+    13px / 1.45 system-ui,
+    -apple-system,
     sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 main {
-  max-width: 880px;
+  max-width: 720px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 16px 16px 48px;
 }
 
 h1 {
-  font-size: 22px;
-  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 650;
+  margin: 0 0 12px;
 }
 
-fieldset {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  margin: 0 0 16px;
-  padding: 12px 16px 16px;
-}
-
-legend {
+h2 {
+  font-size: 13px;
   font-weight: 600;
-  padding: 0 4px;
+  margin: 0;
 }
 
 label {
-  display: block;
-  margin: 8px 0 4px;
   font-weight: 500;
 }
 
@@ -68,32 +89,47 @@ button {
   color: inherit;
 }
 
-input,
+input:not([type="checkbox"], [type="radio"]),
 select {
-  background: transparent;
+  background: var(--field);
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
 }
 
-input[type="password"],
-input#account {
-  width: min(100%, 420px);
-  box-sizing: border-box;
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
 }
 
 button {
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: var(--bg);
+  color: var(--on-accent);
   border-radius: 6px;
-  padding: 6px 14px;
+  padding: 4px 12px;
   cursor: pointer;
 }
 
 button.secondary {
   background: transparent;
   color: var(--accent);
+  border-color: var(--line);
+}
+
+button.link {
+  border: none;
+  background: none;
+  color: var(--accent);
+  padding: 0;
 }
 
 button:disabled {
@@ -103,29 +139,23 @@ button:disabled {
 
 .hint {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   margin: 4px 0 0;
 }
 
 .row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: 8px 12px;
   align-items: end;
 }
 
-.row label {
-  margin-top: 0;
-}
-
-.presets {
-  gap: 8px;
-  margin: 8px 0 0;
-}
-
 .status {
-  min-height: 1.5em;
   margin: 8px 0 0;
+}
+
+.status:empty {
+  margin: 0;
 }
 
 .ok {
@@ -144,32 +174,284 @@ button:disabled {
   color: var(--muted);
 }
 
-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin-top: 16px;
+/* Grouped inset cards, like macOS System Settings. */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 
-th,
-td {
-  text-align: left;
-  padding: 6px 8px;
+.group-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 20px 4px 6px;
+}
+
+.setting {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.setting + .setting {
+  border-top: 1px solid var(--line);
+}
+
+.setting > div:first-child {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+#token,
+#account {
+  width: 190px;
+}
+
+.setting .hint {
+  margin: 2px 0 0;
+}
+
+.setting.flush {
+  padding: 0;
+}
+
+.setting.stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.setting.stacked > :is(div, table) {
+  flex: none;
+}
+
+.control {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* A segmented control built from radio buttons. */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 2px;
+  background: var(--bg);
+}
+
+.segmented label {
+  position: relative;
+  padding: 2px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented label:has(input:checked) {
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.segmented label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+}
+
+/* Preview */
+
+#range {
+  padding: 10px 12px;
+}
+
+#range > div {
+  display: grid;
+  gap: 2px;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.presets button {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 0;
+}
+
+.summary-bar label {
+  font-weight: normal;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.week {
+  margin: 12px 0 0;
+  overflow: hidden;
+}
+
+.week-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.week.quiet .week-head {
+  border-bottom: none;
+}
+
+.week-head .muted {
+  font-size: 12px;
+}
+
+.fold {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  padding: 6px 12px 6px 66px;
+  font-size: 12px;
+}
+
+.fold:hover {
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+}
+
+.day {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.day + .day,
+.day + .fold,
+.fold + .day {
+  border-top: 1px solid var(--line);
+}
+
+.day-date {
+  display: grid;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.day-date .wd {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.day-date .dn {
+  font-size: 16px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-th {
+.day-main {
+  min-width: 0;
+}
+
+.day-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.times {
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-#rules td,
-#rules th {
-  border: none;
-  padding: 4px 8px 4px 0;
+.details {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
-#rules input {
-  width: 6em;
+.day-note,
+.day-result {
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.day.weekend .day-date .dn,
+.day.quiet .times {
+  color: var(--muted);
+}
+
+/* Soft tinted pills: readable in light and dark. */
+.pill {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.pill.create {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.pill.override,
+.pill.flag,
+.pill.check {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+}
+
+.pill.skip {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+}
+
+.pill.none {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 15%, transparent);
+}
+
+.old {
+  text-decoration: line-through;
+}
+
+.footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 0;
+  background: linear-gradient(transparent, var(--bg) 30%);
 }
 
 #debug {
@@ -177,39 +459,68 @@ th {
 }
 
 #debug pre {
-  font-size: 12px;
+  font-size: 11px;
   white-space: pre-wrap;
   max-height: 50vh;
   overflow: auto;
+  background: var(--card);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 8px;
 }
 
+/* Settings */
+
+#rules {
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+#rules td,
+#rules th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 8px 2px 0;
+}
+
+#rules input {
+  width: 6em;
+}
+
+.save-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+/* Confirm dialog, like a native sheet. */
 dialog.confirm {
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--bg);
+  background: var(--card);
   color: var(--fg);
-  padding: 20px;
-  width: min(380px, calc(100vw - 32px));
+  padding: 16px;
+  width: min(420px, calc(100vw - 32px));
   box-sizing: border-box;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 25%);
 }
 
 dialog.confirm::backdrop {
-  background: rgb(0 0 0 / 40%);
+  background: rgb(0 0 0 / 35%);
 }
 
 .confirm-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
 .confirm-head h2 {
-  font-size: 17px;
-  margin: 0;
+  font-size: 15px;
 }
 
 dialog.confirm dl {
@@ -232,7 +543,45 @@ dialog.confirm dd {
 dialog.confirm dd.old {
   color: var(--muted);
   font-weight: normal;
-  text-decoration: line-through;
+}
+
+.changes {
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.changes label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 6px 10px;
+  font-weight: normal;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.changes label + label {
+  border-top: 1px solid var(--line);
+}
+
+.changes .change {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.changes .change-day {
+  font-weight: 600;
+  min-width: 4.5em;
+}
+
+.selected-count {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 8px 0 0;
 }
 
 .confirm-actions {
@@ -242,30 +591,8 @@ dialog.confirm dd.old {
   margin-top: 16px;
 }
 
-/* The side panel is narrow: tighter spacing, and the break column goes (Enter already
-   includes it in the end time). */
-@media (max-width: 640px) {
-  body {
-    font-size: 13px;
-  }
-
-  main {
-    padding: 12px 8px 32px;
-  }
-
-  th,
-  td {
-    padding: 4px;
-  }
-
-  .col-break {
-    display: none;
-  }
-
-  /* Chrome opens the date picker from the input's left edge. Side by side, the "To" picker
-     ran past the right edge of the window, so the fields stack at the panel's left edge. */
-  #range {
-    flex-direction: column;
-    align-items: stretch;
-  }
+/* These set display themselves, so the hidden attribute needs restating. */
+.summary-bar[hidden],
+.footer[hidden] {
+  display: none;
 }

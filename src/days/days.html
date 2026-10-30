@@ -10,7 +10,7 @@
   <body>
     <main>
       <h1>Preview</h1>
-      <form id="range" class="row">
+      <form id="range" class="card row">
         <div>
           <label for="from">From</label>
           <input id="from" type="date" required />
@@ -19,32 +19,24 @@
           <label for="to">To</label>
           <input id="to" type="date" required />
         </div>
-        <button type="submit">Load preview</button>
+        <button type="submit">Load</button>
       </form>
-      <p class="row presets">
+      <p class="presets">
         <button type="button" class="secondary" data-preset="this-week">This week</button>
         <button type="button" class="secondary" data-preset="last-week">Last week</button>
         <button type="button" class="secondary" data-preset="this-month">This month</button>
         <button type="button" class="secondary" data-preset="last-month">Last month</button>
       </p>
       <p class="hint">Keep HRworks Arbeitszeiten open, and don't touch it while punchline works.</p>
+      <div class="summary-bar" hidden>
+        <strong id="summary"></strong>
+        <label><input id="hide-matching" type="checkbox" checked /> Hide matching days</label>
+      </div>
       <div id="status" class="status" role="status"></div>
-      <button id="write-all" type="button" class="write" hidden>Write all</button>
-      <table id="days" hidden>
-        <thead>
-          <tr>
-            <th>Day</th>
-            <th>Harvest</th>
-            <th>HRworks now</th>
-            <th>Enter</th>
-            <th class="col-break">Break</th>
-            <th>Action</th>
-            <th>Note</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <div id="days"></div>
+      <div id="footer" class="footer" hidden>
+        <button id="write-all" type="button" class="write">Write all</button>
+      </div>
       <details id="debug" hidden>
         <summary>Debug log of the last run in HRworks</summary>
         <button id="debug-copy" type="button" class="secondary">Copy</button>

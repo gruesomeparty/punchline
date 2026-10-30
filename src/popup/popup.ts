@@ -4,6 +4,9 @@
 import { HRWORKS_URLS, pickHrworksTab, type ToggleOverlayRequest } from '../hrworks/messages.ts';
 import { loadSettings, type PreviewMode } from '../settings/settings.ts';
 import { byId } from '../ui/dom.ts';
+import { followThemeSetting } from '../ui/theme.ts';
+
+followThemeSetting();
 
 const status = byId('popup-status');
 

@@ -1,33 +1,26 @@
+/* The popup only opens the other pages. Colours and buttons come from page.css. */
+
 body {
   min-width: 240px;
-  margin: 0;
-  padding: 12px;
-  font:
-    14px / 1.4 system-ui,
-    sans-serif;
-}
-
-h1 {
-  margin: 0;
-  font-size: 16px;
 }
 
 main {
   display: grid;
   gap: 8px;
+  padding: 12px;
 }
 
-button {
-  font: inherit;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #5b4fd6;
-  background: #5b4fd6;
-  color: #fff;
-  cursor: pointer;
+h1 {
+  margin: 0;
+  font-size: 15px;
 }
 
-button.secondary {
-  background: transparent;
-  color: #5b4fd6;
+#open-days {
+  padding: 8px 12px;
+  font-weight: 600;
+}
+
+.links {
+  display: flex;
+  justify-content: space-between;
 }

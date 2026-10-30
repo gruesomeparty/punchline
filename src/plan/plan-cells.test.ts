@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DayRow } from '../days/harvest-days.ts';
 import type { HrworksDay, PlannedDay } from './plan.ts';
-import { countActions, planCells, previewCells } from './plan-cells.ts';
+import { planCells, previewCells } from './plan-cells.ts';
 
 const times = { start: '07:00', end: '16:00', breakMinutes: 30 };
 const harvest: DayRow = {
@@ -62,17 +62,6 @@ describe('planCells', () => {
     expect(planCells({ harvest, hrworks: null, action: 'flag', reason: '' }).hrworks).toBe(
       'Not found',
     );
-  });
-});
-
-describe('countActions', () => {
-  it('counts each action', () => {
-    const days: PlannedDay[] = [
-      { harvest, hrworks, action: 'create', times },
-      { harvest, hrworks, action: 'create', times },
-      { harvest, hrworks, action: 'skip', reason: '' },
-    ];
-    expect(countActions(days)).toMatchObject({ create: 2, skip: 1, flag: 0 });
   });
 });
 
