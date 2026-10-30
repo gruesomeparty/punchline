@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>punchline</title>
+    <link rel="stylesheet" href="../ui/page.css" />
     <link rel="stylesheet" href="popup.css" />
     <script type="module" src="popup.js"></script>
   </head>
@@ -10,9 +11,11 @@
     <main>
       <h1>punchline</h1>
       <button id="open-days" type="button">Open preview</button>
-      <button id="open-tab" type="button" class="secondary">Open preview in a tab</button>
-      <button id="open-settings" type="button" class="secondary">Settings</button>
-      <p id="popup-status" role="status"></p>
+      <div class="links">
+        <button id="open-tab" type="button" class="link">Open in a tab</button>
+        <button id="open-settings" type="button" class="link">Settings</button>
+      </div>
+      <p id="popup-status" class="hint" role="status"></p>
     </main>
   </body>
 </html>

@@ -26,9 +26,13 @@ export type Settings = {
   weekendHours: boolean;
   /** Shows the HRworks steps of the latest run in the preview, for troubleshooting. */
   debugLog: boolean;
+  /** Light, dark, or whatever the system uses. */
+  theme: Theme;
 };
 
 export type PreviewMode = 'sidePanel' | 'overlay';
+
+export type Theme = 'system' | 'light' | 'dark';
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   harvestToken: '',
@@ -40,6 +44,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   previewMode: 'sidePanel',
   weekendHours: false,
   debugLog: false,
+  theme: 'system',
 };
 
 function isRule(value: unknown): value is BreakRule {
@@ -78,6 +83,7 @@ export function normalizeSettings(raw: unknown): Settings {
     previewMode: stored.previewMode === 'overlay' ? 'overlay' : 'sidePanel',
     weekendHours: stored.weekendHours === true,
     debugLog: stored.debugLog === true,
+    theme: stored.theme === 'light' || stored.theme === 'dark' ? stored.theme : 'system',
   };
 }
 

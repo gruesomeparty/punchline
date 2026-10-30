@@ -9,6 +9,7 @@ import {
   validateSettings,
 } from '../settings/settings.ts';
 import { byId, el } from '../ui/dom.ts';
+import { applyTheme } from '../ui/theme.ts';
 
 const form = byId<HTMLFormElement>('settings');
 const token = byId<HTMLInputElement>('token');
@@ -18,6 +19,8 @@ const preset = byId<HTMLSelectElement>('preset');
 const rulesBody = byId<HTMLTableElement>('rules').tBodies[0] as HTMLTableSectionElement;
 const conflict = form.elements.namedItem('conflict') as RadioNodeList;
 const preview = form.elements.namedItem('preview') as RadioNodeList;
+const theme = form.elements.namedItem('theme') as RadioNodeList;
+const reveal = byId<HTMLButtonElement>('reveal');
 const weekend = byId<HTMLInputElement>('weekend');
 const debugLog = byId<HTMLInputElement>('debug-log');
 const status = byId<HTMLDivElement>('status');
@@ -82,6 +85,7 @@ function readForm(): Settings {
     previewMode: preview.value === 'overlay' ? 'overlay' : 'sidePanel',
     weekendHours: weekend.checked,
     debugLog: debugLog.checked,
+    theme: theme.value === 'light' || theme.value === 'dark' ? theme.value : 'system',
   };
 }
 
@@ -93,8 +97,22 @@ function fillForm(settings: Settings): void {
   preview.value = settings.previewMode;
   weekend.checked = settings.weekendHours;
   debugLog.checked = settings.debugLog;
+  theme.value = settings.theme;
+  applyTheme(settings.theme);
   preset.value = settings.breakPreset;
   renderRules(settings.breakRules);
+}
+
+reveal.addEventListener('click', () => {
+  const show = token.type === 'password';
+  token.type = show ? 'text' : 'password';
+  reveal.textContent = show ? 'Hide' : 'Show';
+  reveal.setAttribute('aria-pressed', String(show));
+});
+
+// Preview the theme right away. It's stored with the other settings on Save.
+for (const input of form.querySelectorAll<HTMLInputElement>('input[name="theme"]')) {
+  input.addEventListener('change', () => applyTheme(readForm().theme));
 }
 
 preset.addEventListener('change', () => {
@@ -109,6 +127,7 @@ rulesBody.addEventListener('input', () => {
 byId('add-rule').addEventListener('click', () => {
   renderRules([...readRules(), { afterMinutes: 0, breakMinutes: 0 }]);
   preset.value = 'custom';
+  showStatus(status, 'Unsaved changes.');
 });
 
 byId('test').addEventListener('click', async () => {
@@ -123,6 +142,15 @@ byId('test').addEventListener('click', async () => {
     const message = error instanceof HarvestError ? error.message : 'Unexpected error.';
     showStatus(testResult, message, 'error');
   }
+});
+
+// "Saved." only holds until the next edit.
+for (const type of ['input', 'change']) {
+  form.addEventListener(type, () => showStatus(status, 'Unsaved changes.'));
+}
+// Removing or adding a rule changes the form without an input event.
+byId('rules').addEventListener('click', (event) => {
+  if ((event.target as Element).closest('button')) showStatus(status, 'Unsaved changes.');
 });
 
 form.addEventListener('submit', async (event) => {

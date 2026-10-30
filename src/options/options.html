@@ -9,98 +9,138 @@
   </head>
   <body>
     <main>
-      <h1>punchline settings</h1>
+      <h1>Settings</h1>
       <form id="settings" novalidate>
-        <fieldset>
-          <legend>Harvest</legend>
-          <label for="token">Personal access token</label>
-          <input id="token" type="password" autocomplete="off" spellcheck="false" />
-          <label for="account">Account ID</label>
-          <input id="account" inputmode="numeric" autocomplete="off" spellcheck="false" />
-          <p class="hint">
-            Create both at id.getharvest.com/developers. They're stored only in this browser.
-          </p>
-          <p>
-            <button id="test" type="button" class="secondary">Test connection</button>
-            <span id="test-result" role="status"></span>
-          </p>
-        </fieldset>
+        <h2 class="group-title">Harvest</h2>
+        <div class="card">
+          <div class="setting">
+            <div>
+              <label for="token">Personal access token</label>
+              <p class="hint">Stored only in this browser.</p>
+            </div>
+            <div class="control">
+              <input id="token" type="password" autocomplete="off" spellcheck="false" />
+              <button id="reveal" type="button" class="secondary" aria-pressed="false">Show</button>
+            </div>
+          </div>
+          <div class="setting">
+            <div>
+              <label for="account">Account ID</label>
+              <p class="hint">Create both at id.getharvest.com/developers.</p>
+            </div>
+            <div class="control">
+              <input id="account" inputmode="numeric" autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+          <div class="setting">
+            <span id="test-result" role="status" class="hint"></span>
+            <div class="control">
+              <button id="test" type="button" class="secondary">Test connection</button>
+            </div>
+          </div>
+        </div>
 
-        <fieldset>
-          <legend>HRworks times</legend>
-          <label for="start">Start time for every day</label>
-          <input id="start" type="time" />
-          <p class="hint">
-            Every HRworks entry starts at this time. The end time is your Harvest hours plus the
-            break.
-          </p>
+        <h2 class="group-title">HRworks times</h2>
+        <div class="card">
+          <div class="setting">
+            <div>
+              <label for="start">Start time</label>
+              <p class="hint">The end time is your Harvest hours plus the break.</p>
+            </div>
+            <div class="control"><input id="start" type="time" /></div>
+          </div>
+          <div class="setting stacked">
+            <div class="setting flush">
+              <div>
+                <label for="preset">Break rules</label>
+                <p class="hint">Must match the break rules in HRworks, or the check after saving fails.</p>
+              </div>
+              <div class="control">
+                <select id="preset">
+                  <option value="ch">Switzerland</option>
+                  <option value="de">Germany</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+            </div>
+            <table id="rules">
+              <thead>
+                <tr>
+                  <th>More than (hours)</th>
+                  <th>Break (minutes)</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div><button id="add-rule" type="button" class="secondary">Add rule</button></div>
+          </div>
+        </div>
 
-          <label for="preset">Break rules</label>
-          <select id="preset">
-            <option value="ch">Switzerland</option>
-            <option value="de">Germany</option>
-            <option value="custom">Custom</option>
-          </select>
-          <table id="rules">
-            <thead>
-              <tr>
-                <th>More than (hours)</th>
-                <th>Break (minutes)</th>
-                <th><span class="muted">Remove</span></th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-          <button id="add-rule" type="button" class="secondary">Add rule</button>
-          <p class="hint">
-            HRworks takes these breaks off the time you enter, so punchline adds them on top of
-            your Harvest hours. They must match the break rules in HRworks, or the check after each
-            save fails.
-          </p>
-        </fieldset>
+        <h2 class="group-title">Writing</h2>
+        <div class="card">
+          <div class="setting">
+            <div>
+              <span id="conflict-label">When HRworks has different hours</span>
+              <p class="hint">Override logs the old times first, because HRworks has no undo.</p>
+            </div>
+            <div class="control segmented" role="radiogroup" aria-labelledby="conflict-label">
+              <label><input type="radio" name="conflict" value="flag" /> Flag</label>
+              <label><input type="radio" name="conflict" value="override" /> Override</label>
+            </div>
+          </div>
+          <div class="setting">
+            <div>
+              <label for="weekend">Write weekend hours</label>
+              <p class="hint">
+                Off: days without a work plan in HRworks are skipped. On: they're written when
+                Harvest has hours on them.
+              </p>
+            </div>
+            <div class="control"><input id="weekend" type="checkbox" /></div>
+          </div>
+        </div>
 
-        <fieldset>
-          <legend>When HRworks has different hours</legend>
-          <label><input type="radio" name="conflict" value="flag" /> Flag the day and leave it</label>
-          <label
-            ><input type="radio" name="conflict" value="override" /> Override it with the Harvest
-            times</label
-          >
-          <p class="hint">
-            Override logs the old HRworks times before changing anything, because HRworks has no
-            undo.
-          </p>
-        </fieldset>
+        <h2 class="group-title">Appearance</h2>
+        <div class="card">
+          <div class="setting">
+            <span id="theme-label">Theme</span>
+            <div class="control segmented" role="radiogroup" aria-labelledby="theme-label">
+              <label><input type="radio" name="theme" value="light" /> Light</label>
+              <label><input type="radio" name="theme" value="dark" /> Dark</label>
+              <label><input type="radio" name="theme" value="system" /> System</label>
+            </div>
+          </div>
+          <div class="setting">
+            <div>
+              <span id="preview-label">Open the preview</span>
+              <p class="hint">The overlay is punchline's own page in a frame, so HRworks can't read it.</p>
+            </div>
+            <div class="control segmented" role="radiogroup" aria-labelledby="preview-label">
+              <label><input type="radio" name="preview" value="sidePanel" /> Side panel</label>
+              <label><input type="radio" name="preview" value="overlay" /> On HRworks</label>
+            </div>
+          </div>
+        </div>
 
-        <fieldset>
-          <legend>Weekends</legend>
-          <label><input id="weekend" type="checkbox" /> Write weekend hours</label>
-          <p class="hint">
-            Off: weekends and other days without a work plan in HRworks are skipped. On: they are
-            written when Harvest has hours on them, if HRworks lets you add a time there.
-          </p>
-        </fieldset>
+        <h2 class="group-title">Troubleshooting</h2>
+        <div class="card">
+          <div class="setting">
+            <div>
+              <label for="debug-log">Show debug log</label>
+              <p class="hint">
+                The preview shows each step punchline took in HRworks, with a Copy button. Dates,
+                times and page steps only, never your token.
+              </p>
+            </div>
+            <div class="control"><input id="debug-log" type="checkbox" /></div>
+          </div>
+        </div>
 
-        <fieldset>
-          <legend>Open the preview</legend>
-          <label><input type="radio" name="preview" value="sidePanel" /> In Chrome's side panel</label>
-          <label><input type="radio" name="preview" value="overlay" /> On top of HRworks</label>
-          <p class="hint">
-            The overlay is punchline's own page in a frame, so HRworks can't read what it shows.
-          </p>
-        </fieldset>
-
-        <fieldset>
-          <legend>Troubleshooting</legend>
-          <label><input id="debug-log" type="checkbox" /> Show debug log</label>
-          <p class="hint">
-            The preview then shows each step punchline took in HRworks during the last load or
-            write, with a button to copy it. It holds dates, times and page steps, never your token.
-          </p>
-        </fieldset>
-
-        <button type="submit">Save</button>
-        <div id="status" class="status" role="status"></div>
+        <div class="save-bar">
+          <button type="submit">Save</button>
+          <div id="status" class="status" role="status"></div>
+        </div>
       </form>
     </main>
   </body>

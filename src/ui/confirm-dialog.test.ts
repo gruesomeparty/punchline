@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
-import { confirmDialog } from './confirm-dialog.ts';
+import { confirmDialog, selectDialog } from './confirm-dialog.ts';
 
 const options = {
   title: 'Override 23 Jul 2026 in HRworks?',
@@ -43,5 +43,34 @@ describe('confirmDialog', () => {
     const answer = confirmDialog(options);
     dialog().close();
     expect(await answer).toBe(false);
+  });
+});
+
+describe('selectDialog', () => {
+  const rows = [
+    { label: 'Mon 17', after: '08:00–17:00' },
+    { label: 'Tue 18', before: '22:28–', after: '08:00–19:30' },
+  ];
+
+  it('starts with every row ticked and resolves with the ticked ones', async () => {
+    const answer = selectDialog({ title: 'Write?', rows, confirmLabel: 'Write' });
+    expect(dialog().querySelector('.selected-count')?.textContent).toBe('2 of 2 selected');
+    expect(dialog().querySelector('.old')?.textContent).toBe('22:28–');
+    const [first] = dialog().querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    first?.click();
+    expect(dialog().querySelector('.selected-count')?.textContent).toBe('1 of 2 selected');
+    expect(dialog().querySelector('button[value="ok"]')?.textContent).toBe('Write (1)');
+    dialog().close('ok');
+    expect(await answer).toEqual([1]);
+  });
+
+  it('disables confirm with nothing ticked and resolves null on cancel', async () => {
+    const answer = selectDialog({ title: 'Write?', rows, confirmLabel: 'Write' });
+    for (const box of dialog().querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      box.click();
+    }
+    expect(dialog().querySelector<HTMLButtonElement>('button[value="ok"]')?.disabled).toBe(true);
+    dialog().close();
+    expect(await answer).toBeNull();
   });
 });

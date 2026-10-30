@@ -1,5 +1,5 @@
 // Preview page: loads Harvest totals for a range, reads the same days from the HRworks tab and
-// shows what punchline would do for each day. Writing is one day at a time, after a confirm.
+// shows what punchline would do for each day, grouped by week. Writing happens after a confirm.
 
 import { fetchCurrentUser, fetchTimeEntries, HarvestError } from '../harvest/client.ts';
 import { dailyTotals } from '../harvest/daily-totals.ts';
@@ -17,24 +17,33 @@ import type { WriteDay, WriteResult } from '../hrworks/write.ts';
 import { formatDuration, localToday, parseTime } from '../lib/time.ts';
 import { byHrworksWeek } from '../plan/batches.ts';
 import { type HrworksDay, type PlannedDay, planDays } from '../plan/plan.ts';
-import { countActions, previewCells } from '../plan/plan-cells.ts';
 import { appendWriteLog, loadWriteLog, type WriteLogEntry, wasWritten } from '../plan/write-log.ts';
 import { loadSettings, validateSettings } from '../settings/settings.ts';
-import { confirmDialog } from '../ui/confirm-dialog.ts';
+import { confirmDialog, selectDialog } from '../ui/confirm-dialog.ts';
 import { byId, el } from '../ui/dom.ts';
+import { followThemeSetting } from '../ui/theme.ts';
 import { defaultRange, presetRange, type RangePreset, rangeError } from './day-cells.ts';
+import { groupDays, type ListItem } from './day-list.ts';
+import { dayView, foldLabel, summaryLine } from './day-view.ts';
 import { type DayRow, harvestDays } from './harvest-days.ts';
 
 const form = byId<HTMLFormElement>('range');
 const from = byId<HTMLInputElement>('from');
 const to = byId<HTMLInputElement>('to');
 const status = byId<HTMLDivElement>('status');
-const table = byId<HTMLTableElement>('days');
-const submit = form.querySelector('button') as HTMLButtonElement;
+const list = byId<HTMLDivElement>('days');
+const summary = byId<HTMLElement>('summary');
+const summaryBar = summary.parentElement as HTMLElement;
+const hideMatching = byId<HTMLInputElement>('hide-matching');
+const submit = form.querySelector('button[type="submit"]') as HTMLButtonElement;
 const writeAll = byId<HTMLButtonElement>('write-all');
+const footer = byId<HTMLDivElement>('footer');
 const debug = byId<HTMLDetailsElement>('debug');
 const debugText = byId<HTMLPreElement>('debug-text');
+let shownRows: DayRow[] = [];
 let plannedDays: PlannedDay[] = [];
+/** The latest write result of each day, kept so it survives re-rendering the list. */
+const results = new Map<string, { text: string; kind: string }>();
 /** Days written and checked since the preview was loaded. */
 const writtenDates = new Set<string>();
 /** When HRworks was last read for the preview, as an ISO time. */
@@ -42,33 +51,131 @@ let previewReadAt = '';
 
 const weekdays = new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' });
 const fullDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' });
+const dayMonth = new Intl.DateTimeFormat(undefined, {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+});
+const utc = (date: string) => new Date(`${date}T00:00:00Z`);
+/** "Mon 17" */
+const shortDay = (date: string) => `${weekdays.format(utc(date))} ${Number(date.slice(8))}`;
+
+followThemeSetting();
+
+const HIDE_KEY = 'punchline.hideMatching';
+try {
+  hideMatching.checked = localStorage.getItem(HIDE_KEY) !== 'false';
+} catch {
+  // Storage can be unavailable. Folding then just starts on.
+}
 
 function showStatus(text: string, kind: 'ok' | 'error' | '' = ''): void {
   status.textContent = text;
   status.className = `status ${kind}`;
 }
 
-function renderRows(rows: readonly DayRow[], planned: readonly PlannedDay[] | null): void {
-  table.tBodies[0]?.replaceChildren(
-    ...rows.map((row, i) => {
-      const day = new Date(`${row.date}T00:00:00Z`);
-      const cells = previewCells(row, planned?.[i] ?? null);
-      const tr = el('tr', '', row.weekend ? 'muted' : '');
-      tr.append(
-        el('td', `${weekdays.format(day)}, ${fullDate.format(day)}`),
-        el('td', cells.harvest),
-        el('td', cells.hrworks),
-        el('td', cells.enter),
-        el('td', cells.break, 'col-break'),
-        el('td', cells.action, cells.actionKind),
-        el('td', cells.note, cells.noteKind),
-        writeCell(planned?.[i]),
+type Shown = { row: DayRow; planned: PlannedDay | null };
+
+/** One day of the list: date, times, status pill, details, and a Write button if writable. */
+function renderDay({ row, planned }: Shown): HTMLElement {
+  const view = dayView(row, planned);
+  const item = el('div', '', `day${row.weekend ? ' weekend' : ''}${view.quiet ? ' quiet' : ''}`);
+  const date = el('div', '', 'day-date');
+  date.title = fullDate.format(utc(row.date));
+  date.append(
+    el('span', weekdays.format(utc(row.date)), 'wd'),
+    el('span', String(Number(row.date.slice(8))), 'dn'),
+  );
+
+  const main = el('div', '', 'day-main');
+  const line = el('div', '', 'day-line');
+  if (view.before)
+    line.append(el('span', view.before, 'times old muted'), el('span', '→', 'muted'));
+  if (view.times) line.append(el('span', view.times, 'times'));
+  if (view.pill) line.append(el('span', view.pill.label, `pill ${view.pill.kind}`));
+  main.append(line, el('div', view.details, 'details'));
+  if (view.note) main.append(el('div', view.note, `day-note ${view.noteKind}`));
+  const result = el('div', '', 'day-result');
+  main.append(result);
+
+  const action = el('div', '', 'day-action');
+  if (isWritable(planned ?? undefined)) {
+    const day = planned as WritableDay;
+    const button = el('button', day.action === 'create' ? 'Write' : 'Override', 'secondary write');
+    button.type = 'button';
+    button.disabled = writing;
+    button.addEventListener('click', () => void writeWithConfirm([day]));
+    action.append(button);
+  }
+  item.append(date, main, action);
+  dayElements.set(row.date, item);
+  const shown = results.get(row.date);
+  if (shown) showResult(item, shown.text, shown.kind);
+  return item;
+}
+
+/** A folded run of quiet days. Clicking it shows the days in its place. */
+function renderFold(days: Shown[], wholeWeek = false): HTMLElement {
+  const label = foldLabel(
+    days.map((d) => d.planned as PlannedDay),
+    shortDay,
+    wholeWeek,
+  );
+  const button = el('button', label, 'fold');
+  button.type = 'button';
+  button.title = 'Show these days';
+  button.addEventListener('click', () => button.replaceWith(...days.map(renderDay)));
+  return button;
+}
+
+function renderList(): void {
+  dayElements.clear();
+  const shown = shownRows.map((row, i): Shown => ({ row, planned: plannedDays[i] ?? null }));
+  const weeks = groupDays(
+    shown,
+    (d) => d.row.date,
+    (d) => dayView(d.row, d.planned).quiet,
+    hideMatching.checked,
+  );
+  list.replaceChildren(
+    ...weeks.map((week) => {
+      const days = week.items.flatMap((item) => (item.kind === 'fold' ? item.items : [item.item]));
+      const first = days[0]?.row.date ?? '';
+      const last = days.at(-1)?.row.date ?? '';
+      const card = el(
+        'section',
+        '',
+        `card week${week.quiet && hideMatching.checked ? ' quiet' : ''}`,
       );
-      return tr;
+      const head = el('div', '', 'week-head');
+      head.append(
+        el('h2', `KW ${week.week}`),
+        el('span', `${dayMonth.format(utc(first))} – ${dayMonth.format(utc(last))}`, 'muted'),
+      );
+      card.append(head);
+      if (week.quiet && hideMatching.checked) {
+        // The whole week needs nothing: one line, opened by clicking it.
+        card.append(renderFold(days, true));
+        return card;
+      }
+      card.append(
+        ...week.items.map((item: ListItem<Shown>) =>
+          item.kind === 'fold' ? renderFold(item.items) : renderDay(item.item),
+        ),
+      );
+      return card;
     }),
   );
-  table.hidden = false;
 }
+
+hideMatching.addEventListener('change', () => {
+  try {
+    localStorage.setItem(HIDE_KEY, String(hideMatching.checked));
+  } catch {
+    // Not remembered then.
+  }
+  renderList();
+});
 
 /** Sends a request to the HRworks tab. Returns an error message instead of throwing. */
 async function sendToHrworks<T>(
@@ -108,8 +215,8 @@ async function readHrworks(from: string, to: string): Promise<HrworksDay[] | str
 }
 
 let writing = false;
-/** The action cell of each day in the table, by date. */
-const actionCells = new Map<string, HTMLTableCellElement>();
+/** The rendered row of each day, by date. Folded days have none until they're shown. */
+const dayElements = new Map<string, HTMLElement>();
 
 type WritableDay = PlannedDay & { action: 'create' | 'override' };
 
@@ -117,21 +224,20 @@ function isWritable(day: PlannedDay | undefined): day is WritableDay {
   return day?.action === 'create' || day?.action === 'override';
 }
 
-/** A "Write" button for days to create, an "Override" button for days to change. */
-function writeCell(day: PlannedDay | undefined): HTMLTableCellElement {
-  const cell = el('td');
-  if (!isWritable(day)) return cell;
-  actionCells.set(day.harvest.date, cell);
-  const label = day.action === 'create' ? 'Write' : 'Override';
-  const button = el('button', label, 'secondary write');
-  button.type = 'button';
-  button.addEventListener('click', () => void writeWithConfirm([day]));
-  cell.append(button);
-  return cell;
+function showResult(item: HTMLElement, text: string, kind: string): void {
+  item.querySelector('.day-action')?.replaceChildren();
+  const result = item.querySelector('.day-result');
+  if (result) {
+    result.textContent = text;
+    result.className = `day-result ${kind}`;
+  }
 }
 
+/** Shows how writing a day went, below its times. */
 function showInCell(date: string, text: string, kind: string): void {
-  actionCells.get(date)?.replaceChildren(el('span', text, kind));
+  results.set(date, { text, kind });
+  const item = dayElements.get(date);
+  if (item) showResult(item, text, kind);
 }
 
 function setWriteButtons(disabled: boolean): void {
@@ -144,7 +250,6 @@ const oldTimes = (day: WritableDay) =>
   day.action === 'override'
     ? day.previous.map((entry) => `${entry.start}–${entry.end}`).join(', ')
     : '';
-const shortDate = (date: string) => `${weekdays.format(new Date(`${date}T00:00:00Z`))} ${date}`;
 
 function toWriteDay(day: WritableDay): WriteDay {
   return {
@@ -157,18 +262,22 @@ function toWriteDay(day: WritableDay): WriteDay {
   };
 }
 
-function confirmWrite(days: readonly WritableDay[], earlier: WriteLogEntry | null) {
+/** Asks before writing. Resolves with the days the user chose, or none when cancelled. */
+async function confirmWrite(
+  days: readonly WritableDay[],
+  earlier: WriteLogEntry | null,
+): Promise<WritableDay[]> {
   const icon = '../icons/icon-48.png';
   const [day] = days;
   if (days.length === 1 && day) {
     const { start, end } = day.times;
     const override = day.action === 'override';
-    const shownDate = fullDate.format(new Date(`${day.harvest.date}T00:00:00Z`));
-    return confirmDialog({
+    const shownDate = fullDate.format(utc(day.harvest.date));
+    const ok = await confirmDialog({
       title: override ? `Override ${shownDate} in HRworks?` : `Write ${shownDate} to HRworks?`,
       rows: [
-        ...(override ? [{ label: 'HRworks now', value: oldTimes(day), old: true }] : []),
-        { label: override ? 'New' : 'Enter', value: `${start}–${end}` },
+        ...(override ? [{ label: 'Before', value: oldTimes(day), old: true }] : []),
+        { label: override ? 'After' : 'Enter', value: `${start}–${end}` },
         { label: 'After breaks', value: `${formatDuration(day.harvest.netMinutes)} (Harvest)` },
       ],
       note:
@@ -180,24 +289,24 @@ function confirmWrite(days: readonly WritableDay[], earlier: WriteLogEntry | nul
       confirmLabel: override ? 'Override' : 'Write',
       icon,
     });
+    return ok ? [day] : [];
   }
   const overrides = days.filter((d) => d.action === 'override').length;
-  return confirmDialog({
+  const chosen = await selectDialog({
     title: `Write ${days.length} days to HRworks?`,
     rows: days.map((d) => ({
-      label: shortDate(d.harvest.date),
-      value:
-        d.action === 'override'
-          ? `${oldTimes(d)} → ${d.times.start}–${d.times.end}`
-          : `${d.times.start}–${d.times.end}`,
+      label: shortDay(d.harvest.date),
+      ...(d.action === 'override' ? { before: oldTimes(d) } : {}),
+      after: `${d.times.start}–${d.times.end}`,
     })),
     note:
       'punchline saves once per HRworks week and checks every day after. It stops at the first ' +
       'problem; load the preview again to continue.' +
-      (overrides > 0 ? ` ${overrides} override(s): the old times are logged first.` : ''),
-    confirmLabel: 'Write all',
+      (overrides > 0 ? ' Old times are logged before an override.' : ''),
+    confirmLabel: 'Write',
     icon,
   });
+  return chosen?.flatMap((i) => days[i] ?? []) ?? [];
 }
 
 const LOST_CONTACT = 'Lost contact with the HRworks tab while it was writing.';
@@ -228,13 +337,14 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
   if (held > 0 && days.length === 0) {
     showStatus('Load the preview again first: an earlier save could not be checked.', 'error');
   }
-  if (days.length === 0 || !(await confirmWrite(days, earlier))) return;
+  const chosen = days.length > 0 ? await confirmWrite(days, earlier) : [];
+  if (chosen.length === 0) return;
 
   writing = true;
   setWriteButtons(true);
   let written = 0;
   let stop = '';
-  for (const week of byHrworksWeek(days, (day) => day.harvest.date)) {
+  for (const week of byHrworksWeek(chosen, (day) => day.harvest.date)) {
     for (const day of week) showInCell(day.harvest.date, 'Writing…', 'muted');
     const attempts = week.map((day) => ({
       date: day.harvest.date,
@@ -287,12 +397,12 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
   setWriteButtons(false);
   updateWriteAll();
   await showDebugLog();
-  if (days.length > 1) {
+  if (chosen.length > 1) {
     showStatus(
       stop
-        ? `Wrote ${written} of ${days.length} days, then stopped at ${stop}. Load the preview ` +
+        ? `Wrote ${written} of ${chosen.length} days, then stopped at ${stop}. Load the preview ` +
             'again to continue.'
-        : `Wrote and checked all ${days.length} days.`,
+        : `Wrote and checked all ${chosen.length} days.`,
       stop ? 'error' : 'ok',
     );
   }
@@ -306,7 +416,7 @@ function remainingDays(): WritableDay[] {
 function updateWriteAll(): void {
   const count = remainingDays().length;
   writeAll.textContent = `Write all ${count} days`;
-  writeAll.hidden = count < 2;
+  footer.hidden = count < 2;
 }
 
 writeAll.addEventListener('click', () => void writeWithConfirm(remainingDays()));
@@ -325,10 +435,11 @@ form.addEventListener('submit', async (event) => {
   }
 
   submit.disabled = true;
-  writeAll.hidden = true;
+  footer.hidden = true;
+  summaryBar.hidden = true;
   plannedDays = [];
   writtenDates.clear();
-  actionCells.clear();
+  results.clear();
   showStatus('Loading from Harvest…');
   try {
     const credentials = { token: settings.harvestToken, accountId: settings.harvestAccountId };
@@ -339,7 +450,8 @@ form.addEventListener('submit', async (event) => {
       rules: settings.breakRules,
       today: localToday(),
     });
-    renderRows(rows, null);
+    shownRows = rows;
+    renderList();
 
     showStatus('Reading HRworks…');
     previewReadAt = new Date().toISOString();
@@ -354,14 +466,11 @@ form.addEventListener('submit', async (event) => {
       weekendHours: settings.weekendHours,
     });
     plannedDays = planned;
-    renderRows(rows, planned);
+    renderList();
     updateWriteAll();
-    const counts = countActions(planned);
-    showStatus(
-      `${counts.create} to create, ${counts.override} to override, ${counts.skip} already match, ` +
-        `${counts.flag} flagged, ${counts.check} to check manually.`,
-      'ok',
-    );
+    summary.textContent = summaryLine(planned);
+    summaryBar.hidden = false;
+    showStatus('');
   } catch (error) {
     showStatus(error instanceof HarvestError ? error.message : 'Unexpected error.', 'error');
   } finally {
