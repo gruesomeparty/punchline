@@ -186,4 +186,16 @@ th {
   .col-break {
     display: none;
   }
+
+  /* Chrome opens the date picker from the input's left edge. Side by side, the "To" picker
+     ran past the right edge of the window, so the fields stack at the panel's left edge. */
+  #range {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #range input {
+    width: 100%;
+    box-sizing: border-box;
+  }
 }
