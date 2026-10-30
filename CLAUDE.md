@@ -12,7 +12,13 @@ dependencies.
 
 - `src/manifest.json`: extension manifest (version must match `package.json`)
 - `src/background.ts`: service worker entry
-- `src/popup/`: popup UI (`popup.html`, `popup.ts`, `popup.css`)
+- `src/popup/`: popup UI (`popup.html`, `popup.ts`, `popup.css`). It only opens the pages below.
+- `src/options/`: settings page (Harvest credentials, start time, break rules)
+- `src/days/`: Harvest days page, plus the pure logic that turns Harvest totals into day rows
+- `src/harvest/`: Harvest API client and daily totals
+- `src/rules/`: break presets (Switzerland, Germany) and the start/end calculation
+- `src/settings/`: settings stored in `chrome.storage.local`
+- `src/lib/`, `src/ui/`: shared time/date helpers and DOM helpers, `page.css`
 - `src/icons/`: extension icons (16/32/48/128). `assets/` holds the banner and the 1024px master. It isn't shipped.
 - `scripts/`: build, package and policy checks, run directly by Node (type stripping)
 - `scripts/lib/`: tested logic behind the checks

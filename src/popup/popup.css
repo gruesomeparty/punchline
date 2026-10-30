@@ -11,3 +11,23 @@ h1 {
   margin: 0;
   font-size: 16px;
 }
+
+main {
+  display: grid;
+  gap: 8px;
+}
+
+button {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #5b4fd6;
+  background: #5b4fd6;
+  color: #fff;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  color: #5b4fd6;
+}
