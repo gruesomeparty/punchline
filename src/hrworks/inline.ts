@@ -4,7 +4,7 @@
 // the background, so the token never reaches it.
 
 import { summaryLine } from '../days/day-view.ts';
-import { lastDayOfMonth } from '../lib/time.ts';
+import { datesBetween, lastDayOfMonth } from '../lib/time.ts';
 import { type PlannedDay, planDays } from '../plan/plan.ts';
 import { loadWriteLog } from '../plan/write-log.ts';
 import { holdUnchecked, isWritable, runWrites, type WritableDay } from '../plan/write-runner.ts';
@@ -19,7 +19,9 @@ import {
   type ReadOptions,
   readHrworksDays,
   readSelectedMonth,
+  readWeeks,
 } from './page.ts';
+import { parseWeekTitle } from './parse.ts';
 import { writeDays } from './write.ts';
 
 const BAR_TAG = 'punchline-bar';
@@ -30,6 +32,8 @@ export type InlineOptions = ReadOptions & {
   loadRows: (from: string, to: string) => Promise<HarvestRowsResponse>;
   /** Runs `task` unless punchline is already busy in this tab. Resolves with whether it ran. */
   exclusive: (task: () => Promise<void>) => Promise<boolean>;
+  /** Compares a week as soon as it is opened. On unless a test turns it off. */
+  autoCompare?: boolean;
   /** Tests open the shadow roots to look inside. */
   shadowMode?: ShadowRootMode;
 };
@@ -41,6 +45,26 @@ export type Inline = {
 };
 
 type Result = { text: string; kind: string };
+
+type Range = { from: string; to: string };
+
+function monthKey(shown: { year: number; month: number }): string {
+  return `${shown.year}-${String(shown.month).padStart(2, '0')}`;
+}
+
+/** The open week's days within the shown month, or null when no week is open. */
+function openWeekRange(doc: Document): (Range & { title: string }) | null {
+  const shown = readSelectedMonth(doc);
+  const week = shown ? readWeeks(doc).find((candidate) => candidate.open) : undefined;
+  const range = shown && week ? parseWeekTitle(week.title, shown.year) : null;
+  if (!shown || !week || !range) return null;
+  // A week at the month edge is cut to the month, as HRworks shows it.
+  const month = monthKey(shown);
+  const dates = datesBetween(range.from, range.to).filter((date) => date.startsWith(month));
+  const from = dates[0];
+  const to = dates.at(-1);
+  return from && to ? { title: week.title, from, to } : null;
+}
 
 function make<K extends keyof HTMLElementTagNameMap>(
   doc: Document,
@@ -57,7 +81,14 @@ function make<K extends keyof HTMLElementTagNameMap>(
 export function mountInline(doc: Document, options: InlineOptions): Inline {
   const planned = new Map<string, PlannedDay>();
   const results = new Map<string, Result>();
-  let readAt = '';
+  /** Dates already compared, so opening a compared week doesn't load it again. */
+  const compared = new Set<string>();
+  /** The month the comparison belongs to. Changing the month clears it. */
+  let comparedMonth = '';
+  /** The open week punchline last compared on its own, so a failure isn't retried in a loop. */
+  let autoWeek = '';
+  /** When each date was read from HRworks, to hold days saved after that without a check. */
+  const readAt = new Map<string, string>();
   let busy = false;
 
   // The bar lives in its own host, re-inserted whenever HRworks re-renders the month picker.
@@ -74,12 +105,23 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
   const checkButton = make(doc, 'button', 'Compare with Harvest', 'primary');
   checkButton.type = 'button';
   const summary = make(doc, 'span', '', 'summary');
+  const writeWeek = make(doc, 'button', '', 'secondary');
+  writeWeek.type = 'button';
+  writeWeek.hidden = true;
   const writeAll = make(doc, 'button', '', 'secondary');
   writeAll.type = 'button';
   writeAll.hidden = true;
   const status = make(doc, 'span', '', 'status');
   status.setAttribute('role', 'status');
-  bar.append(mark, make(doc, 'strong', 'punchline'), checkButton, summary, writeAll, status);
+  bar.append(
+    mark,
+    make(doc, 'strong', 'punchline'),
+    checkButton,
+    summary,
+    writeWeek,
+    writeAll,
+    status,
+  );
   barRoot.append(style, bar);
 
   function showStatus(text: string, kind = ''): void {
@@ -93,12 +135,56 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
     );
   }
 
+  /** Days of the open week that still need writing. */
+  function remainingInWeek(): WritableDay[] {
+    const week = openWeekRange(doc);
+    if (!week) return [];
+    return remaining().filter(
+      (day) => day.harvest.date >= week.from && day.harvest.date <= week.to,
+    );
+  }
+
   function updateButtons(): void {
     const count = remaining().length;
+    const inWeek = remainingInWeek().length;
+    writeWeek.textContent = `Sync week (${inWeek})`;
+    writeWeek.hidden = inWeek === 0;
     writeAll.textContent = `Write all ${count}`;
-    writeAll.hidden = count < 2;
+    writeAll.hidden = count < 2 || count === inWeek;
     checkButton.disabled = busy;
+    writeWeek.disabled = busy;
     writeAll.disabled = busy;
+  }
+
+  function updateSummary(): void {
+    summary.textContent = planned.size > 0 ? summaryLine([...planned.values()]) : '';
+  }
+
+  /** Forgets the comparison once HRworks shows another month, so nothing stale stays. */
+  function clearIfMonthChanged(): void {
+    const shown = readSelectedMonth(doc);
+    if (busy || !shown || !comparedMonth || monthKey(shown) === comparedMonth) return;
+    planned.clear();
+    results.clear();
+    compared.clear();
+    readAt.clear();
+    comparedMonth = '';
+    autoWeek = '';
+    updateSummary();
+    showStatus('');
+    refreshBadges();
+  }
+
+  /** Compares the week the user just opened, unless it was compared already. */
+  function compareOpenWeek(): void {
+    if (busy || options.autoCompare === false) return;
+    const week = openWeekRange(doc);
+    if (!week) return;
+    const key = `${week.from} ${week.title}`;
+    if (key === autoWeek) return;
+    autoWeek = key;
+    if (datesBetween(week.from, week.to).every((date) => compared.has(date))) return;
+    void compare(week.from, week.to);
   }
 
   function badgeContent(day: PlannedDay): HTMLElement | null {
@@ -145,28 +231,44 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
     attach();
   }
 
+  function onPageChange(): void {
+    clearIfMonthChanged();
+    attach();
+    if (!busy) updateButtons();
+    compareOpenWeek();
+  }
+
   let scheduled = false;
   const observer = new MutationObserver(() => {
     if (scheduled) return;
     scheduled = true;
     setTimeout(() => {
       scheduled = false;
-      attach();
+      onPageChange();
     }, 50);
   });
   observer.observe(doc.body, { childList: true, subtree: true });
   attach();
 
+  /** Compares the whole month HRworks shows. */
   async function check(): Promise<void> {
+    const shown = readSelectedMonth(doc);
+    if (!shown) {
+      showStatus('Open Zeitwirtschaft → Arbeitszeiten first.', 'error');
+      return;
+    }
+    const from = `${monthKey(shown)}-01`;
+    await compare(from, lastDayOfMonth(from));
+  }
+
+  /** Compares `from` to `to` (one month at most) and adds the result to the badges. */
+  async function compare(from: string, to: string): Promise<void> {
     await options.exclusive(async () => {
       const shown = readSelectedMonth(doc);
       if (!shown) {
         showStatus('Open Zeitwirtschaft → Arbeitszeiten first.', 'error');
         return;
       }
-      const month = `${shown.year}-${String(shown.month).padStart(2, '0')}`;
-      const from = `${month}-01`;
-      const to = lastDayOfMonth(from);
       busy = true;
       updateButtons();
       try {
@@ -177,7 +279,7 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
           return;
         }
         showStatus('Reading HRworks…');
-        readAt = new Date().toISOString();
+        const readTime = new Date().toISOString();
         const first = harvest.rows[0]?.date ?? from;
         const last = harvest.rows.at(-1)?.date ?? to;
         const hrworks = await readHrworksDays(doc, first, last, options);
@@ -185,10 +287,22 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
           mode: harvest.mode,
           weekendHours: harvest.weekendHours,
         });
-        planned.clear();
-        results.clear();
-        for (const day of plan) planned.set(day.harvest.date, day);
-        summary.textContent = summaryLine(plan);
+        if (comparedMonth !== monthKey(shown)) {
+          planned.clear();
+          results.clear();
+          compared.clear();
+          readAt.clear();
+          comparedMonth = monthKey(shown);
+        }
+        for (const day of plan) {
+          planned.set(day.harvest.date, day);
+          results.delete(day.harvest.date);
+        }
+        for (const date of datesBetween(from, to)) {
+          compared.add(date);
+          readAt.set(date, readTime);
+        }
+        updateSummary();
         showStatus('');
       } catch (error) {
         showStatus(
@@ -206,7 +320,9 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
   async function write(candidates: readonly WritableDay[]): Promise<void> {
     if (busy || candidates.length === 0) return;
     await options.exclusive(async () => {
-      const { ready, held, earlier } = holdUnchecked(candidates, await loadWriteLog(), readAt);
+      // The oldest read decides, so no day is trusted past its own read.
+      const since = candidates.map((day) => readAt.get(day.harvest.date) ?? '').sort()[0] ?? '';
+      const { ready, held, earlier } = holdUnchecked(candidates, await loadWriteLog(), since);
       for (const day of held) {
         results.set(day.harvest.date, {
           text: 'Saved without a check. Compare again.',
@@ -239,6 +355,7 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
   }
 
   checkButton.addEventListener('click', () => void check());
+  writeWeek.addEventListener('click', () => void write(remainingInWeek()));
   writeAll.addEventListener('click', () => void write(remaining()));
 
   return {

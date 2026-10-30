@@ -39,12 +39,21 @@ beforeEach(() => {
       },
     },
   });
+  inline = mount(false);
+});
+
+/** Mounts punchline in the fake HRworks. Most tests compare by hand to stay predictable. */
+function mount(autoCompare: boolean): Inline {
   let busy = false;
-  inline = mountInline(document, {
+  return mountInline(document, {
     timeoutMs: 1000,
     pauseMs: 0,
     shadowMode: 'open',
-    loadRows: async () => response,
+    autoCompare,
+    loadRows: async (from, to) =>
+      response.ok
+        ? { ...response, rows: response.rows.filter((r) => r.date >= from && r.date <= to) }
+        : response,
     exclusive: async (task) => {
       if (busy) return false;
       busy = true;
@@ -56,7 +65,7 @@ beforeEach(() => {
       return true;
     },
   });
-});
+}
 
 afterEach(() => {
   inline.unmount();
@@ -135,6 +144,42 @@ describe('mountInline', () => {
     response = { ok: false, error: 'Set up your Harvest token in the punchline settings first.' };
     await inline.check();
     expect(bar()?.querySelector('.status')?.textContent).toMatch(/Set up your Harvest token/);
+  });
+
+  it('forgets the comparison when HRworks shows another month', async () => {
+    await inline.check();
+    await openSecondWeek();
+    expect(bar()?.querySelector('.summary')?.textContent).toBe('1 to create · 1 match');
+    hrworks.month = 6;
+    hrworks.render();
+    await wait(100);
+    expect(bar()?.querySelector('.summary')?.textContent).toBe('');
+    expect(document.querySelector('punchline-badge')).toBeNull();
+    const buttons = [...(bar()?.querySelectorAll('button.secondary') ?? [])] as HTMLButtonElement[];
+    expect(buttons.every((button) => button.hidden)).toBe(true);
+  });
+
+  it('compares a week as soon as it is opened, and syncs that week', async () => {
+    inline.unmount();
+    inline = mount(true);
+    await vi.waitFor(() => expect(badge('2026-07-01')?.textContent).toBe('✓'), { timeout: 3000 });
+    await openSecondWeek();
+    await vi.waitFor(() => expect(badge('2026-07-06')?.textContent).toBe('+ 08:00–17:00'), {
+      timeout: 3000,
+    });
+    const sync = [...(bar()?.querySelectorAll('button') ?? [])].find((button) =>
+      button.textContent?.startsWith('Sync week'),
+    ) as HTMLButtonElement;
+    expect(sync.textContent).toBe('Sync week (1)');
+    expect(sync.hidden).toBe(false);
+    sync.click();
+    await vi.waitFor(() => expect(bar()?.querySelector('dialog')).toBeTruthy());
+    bar()?.querySelector('dialog')?.close('ok');
+    await vi.waitFor(() => expect(badge('2026-07-06')?.textContent).toBe('Written and checked'), {
+      timeout: 3000,
+    });
+    expect(hrworks.saves).toBe(1);
+    expect(sync.hidden).toBe(true);
   });
 
   it('removes everything it added on unmount', async () => {
