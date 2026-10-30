@@ -21,6 +21,7 @@ import {
   readSelectedMonth,
   readWeeks,
 } from './page.ts';
+import { isOnDarkBackground } from './page-theme.ts';
 import { parseWeekTitle } from './parse.ts';
 import { writeDays } from './write.ts';
 
@@ -209,6 +210,8 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
     const monthGroup = doc.querySelector(`[data-guide-id="${GUIDE.monthGroup}"]`);
     const anchor = monthGroup?.parentElement;
     if (anchor && !barHost.isConnected) anchor.after(barHost);
+    const theme = isOnDarkBackground(anchor ?? doc.body) ? 'dark' : 'light';
+    barHost.dataset.theme = theme;
     for (const [date, day] of planned) {
       const row = findRow(doc, date);
       if (!row || row.querySelector(BADGE_TAG)) continue;
@@ -216,6 +219,7 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
       if (!content) continue;
       const host = doc.createElement(BADGE_TAG);
       host.dataset.date = date;
+      host.dataset.theme = isOnDarkBackground(row) ? 'dark' : 'light';
       const root = host.attachShadow({ mode });
       host.addEventListener('click', (event) => event.stopPropagation());
       const badgeStyle = make(doc, 'style');

@@ -1,6 +1,6 @@
 // Styles of the punchline bar and badges inside HRworks. Shape follows the host page (its font,
-// small radii), colour stays punchline's, so it's always clear what the extension added. HRworks
-// is light, so there is no dark variant here.
+// text colour, small radii), the accent stays punchline's, so it's always clear what the
+// extension added. HRworks can be light or dark; the hosts carry data-theme to match it.
 
 export const INLINE_STYLE = `
   :host {
@@ -9,11 +9,25 @@ export const INLINE_STYLE = `
     font: inherit;
     color: inherit;
     --accent: #5b4fd6;
+    --on-accent: #ffffff;
     --warn: #9a5b00;
     --error: #c42b1c;
     --ok: #1b7f3b;
     --muted: #6e6e73;
     --line: #d9d9de;
+    --surface: #ffffff;
+    --fg: #1d1d1f;
+  }
+  :host([data-theme="dark"]) {
+    --accent: #a9a1ff;
+    --on-accent: #1e1e1e;
+    --warn: #f0b24a;
+    --error: #ff6b5e;
+    --ok: #5fd07c;
+    --muted: #a1a1a6;
+    --line: #4a4a50;
+    --surface: #2a2a2e;
+    --fg: #f5f5f7;
   }
   :host(punchline-bar) {
     display: block;
@@ -35,8 +49,8 @@ export const INLINE_STYLE = `
     padding: 6px 10px;
     border: 1px solid var(--line);
     border-left: 3px solid var(--accent);
-    border-radius: 4px;
-    background: #fff;
+    border-radius: 6px;
+    background: transparent;
     font-size: 13px;
   }
   .mark {
@@ -46,19 +60,19 @@ export const INLINE_STYLE = `
     height: 18px;
     border-radius: 5px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 700;
     font-size: 12px;
   }
   .primary,
   .secondary {
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 3px 10px;
     border: 1px solid var(--accent);
   }
   .primary {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
   }
   .secondary {
     background: transparent;
@@ -94,20 +108,19 @@ export const INLINE_STYLE = `
     opacity: 0.7;
   }
   button.badge:hover {
-    filter: brightness(0.95);
     border-color: currentColor;
   }
   .create {
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, white);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
   }
   .override {
     color: var(--warn);
-    background: color-mix(in srgb, var(--warn) 12%, white);
+    background: color-mix(in srgb, var(--warn) 16%, transparent);
   }
   .flag {
     color: var(--error);
-    background: color-mix(in srgb, var(--error) 10%, white);
+    background: color-mix(in srgb, var(--error) 14%, transparent);
   }
   .match {
     color: var(--muted);
@@ -130,8 +143,8 @@ export const INLINE_STYLE = `
   dialog.confirm {
     border: 1px solid var(--line);
     border-radius: 8px;
-    background: #fff;
-    color: #1d1d1f;
+    background: var(--surface);
+    color: var(--fg);
     padding: 16px;
     width: min(420px, calc(100vw - 32px));
     box-sizing: border-box;
@@ -212,7 +225,7 @@ export const INLINE_STYLE = `
     padding: 4px 12px;
     border: 1px solid var(--accent);
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
   }
   .confirm-actions button.secondary {
     background: transparent;
