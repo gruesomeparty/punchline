@@ -54,10 +54,19 @@ function entryHtml(entry: { start: string; end: string }): string {
   </div></div></div>`;
 }
 
+/** The saved entry of a day, if its status shows a start and an end. */
+function savedEntry(day: FakeDay): { start: string; end: string } | null {
+  const [start, end] = (day.status ?? []).map((text) => /^(\d{2}:\d{2}) Uhr$/.exec(text)?.[1]);
+  return start && end ? { start, end } : null;
+}
+
+// Like HRworks, the ⓘ details show saved entries as editable inputs too.
 function details(day: FakeDay): string {
   const open = day.detailsOpen || day.editing;
+  const saved = day.detailsOpen ? savedEntry(day) : null;
+  const entries = [saved, day.editing].flatMap((entry) => (entry ? [entryHtml(entry)] : []));
   return `<div class="row${open ? '' : ' bs-hide'}">${infoPanel(day)}
-    <div class="col-12">${day.editing ? entryHtml(day.editing) : ''}</div></div>`;
+    <div class="col-12">${entries.join('')}</div></div>`;
 }
 
 export function dayHtml(day: FakeDay): string {
@@ -178,6 +187,10 @@ export function fakeMonths(): Map<string, FakeWeek[]> {
   ]);
 }
 
+function byGuideIn(root: ParentNode, id: string): Element[] {
+  return [...root.querySelectorAll(`[data-guide-id="${id}"]`)];
+}
+
 /** A fake HRworks page: weeks, details and saves load a little later, like the real one. */
 export class FakeHrworks {
   data = fakeMonths();
@@ -270,14 +283,20 @@ export class FakeHrworks {
       });
     } else if (guide === WRITE_GUIDE.save) {
       this.saves++;
-      const inputs = [...document.querySelectorAll<HTMLInputElement>('input')];
-      const editing = this.days().find((day) => day.editing);
-      const [start = '', end = ''] = inputs.map((input) => input.value);
+      // Speichern sends every entry on the page, saved or new, with whatever is in its inputs.
+      const sent = byGuideIn(document, WRITE_GUIDE.entry).flatMap((entry) => {
+        const holder = entry.closest('.hrw-me-object-holder-without-separator-line');
+        const day = this.dayOf(holder?.querySelector(`[data-guide-id="${GUIDE.dayRow}"]`));
+        const [start = '', end = ''] = [...entry.querySelectorAll('input')].map((i) => i.value);
+        return day ? [{ day, start, end }] : [];
+      });
       this.later(() => {
-        if (!editing || this.rejectSave) return;
-        delete editing.editing;
-        editing.status = [`${start} Uhr`, `${end} Uhr`];
-        editing.credited = formatDuration(creditFor(start, end));
+        if (this.rejectSave) return;
+        for (const { day, start, end } of sent) {
+          delete day.editing;
+          day.status = [`${start} Uhr`, `${end} Uhr`];
+          day.credited = formatDuration(creditFor(start, end));
+        }
         if (this.closeWeeksOnSave) for (const week of this.weeks()) week.open = false;
       });
     }

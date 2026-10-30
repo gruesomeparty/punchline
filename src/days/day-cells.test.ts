@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayCells, defaultRange, rangeError } from './day-cells.ts';
+import { dayCells, defaultRange, presetRange, rangeError } from './day-cells.ts';
 
 const base = { date: '2026-01-05', weekend: false };
 
@@ -51,6 +51,39 @@ describe('defaultRange', () => {
 
   it('covers last month on the 1st', () => {
     expect(defaultRange('2026-11-01')).toEqual({ from: '2026-10-01', to: '2026-10-31' });
+  });
+});
+
+describe('presetRange', () => {
+  // 2026-10-30 is a Friday.
+  it('covers weeks from Monday', () => {
+    expect(presetRange('this-week', '2026-10-30')).toEqual({
+      from: '2026-10-26',
+      to: '2026-10-30',
+    });
+    expect(presetRange('last-week', '2026-10-30')).toEqual({
+      from: '2026-10-19',
+      to: '2026-10-25',
+    });
+    expect(presetRange('this-week', '2026-11-01')).toEqual({
+      from: '2026-10-26',
+      to: '2026-11-01',
+    });
+  });
+
+  it('covers months, also across the year', () => {
+    expect(presetRange('this-month', '2026-10-30')).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-30',
+    });
+    expect(presetRange('last-month', '2026-10-30')).toEqual({
+      from: '2026-09-01',
+      to: '2026-09-30',
+    });
+    expect(presetRange('last-month', '2026-01-15')).toEqual({
+      from: '2025-12-01',
+      to: '2025-12-31',
+    });
   });
 });
 

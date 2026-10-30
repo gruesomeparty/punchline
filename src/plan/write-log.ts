@@ -1,5 +1,5 @@
-// Every write punchline attempts in HRworks, kept in chrome.storage.local. It is what stops a
-// day from being written twice, and it keeps the old HRworks times before an override.
+// Every write punchline attempts in HRworks, kept in chrome.storage.local. It keeps the old
+// HRworks times before an override, and it holds back a day whose save couldn't be checked.
 
 import type { HrworksEntry } from './plan.ts';
 
@@ -25,9 +25,13 @@ function isEntry(value: unknown): value is WriteLogEntry {
   return typeof v.date === 'string' && typeof v.result === 'string';
 }
 
-/** A day counts as written once a save went through, or might have. */
+/**
+ * A day counts as written once a save went through, or might have. Only the latest entry for a
+ * day counts, because each attempt is logged once before it starts and again with its result.
+ */
 export function wasWritten(log: readonly WriteLogEntry[], date: string): WriteLogEntry | null {
-  return log.find((entry) => entry.date === date && entry.result !== 'failed') ?? null;
+  const latest = log.findLast((entry) => entry.date === date);
+  return latest && latest.result !== 'failed' ? latest : null;
 }
 
 export async function loadWriteLog(): Promise<WriteLogEntry[]> {

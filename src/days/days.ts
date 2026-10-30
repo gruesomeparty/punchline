@@ -16,8 +16,9 @@ import { type HrworksDay, type PlannedDay, planDays } from '../plan/plan.ts';
 import { countActions, previewCells } from '../plan/plan-cells.ts';
 import { appendWriteLog, loadWriteLog, wasWritten } from '../plan/write-log.ts';
 import { loadSettings, validateSettings } from '../settings/settings.ts';
+import { confirmDialog } from '../ui/confirm-dialog.ts';
 import { byId, el } from '../ui/dom.ts';
-import { defaultRange, rangeError } from './day-cells.ts';
+import { defaultRange, presetRange, type RangePreset, rangeError } from './day-cells.ts';
 import { type DayRow, harvestDays } from './harvest-days.ts';
 
 const form = byId<HTMLFormElement>('range');
@@ -78,11 +79,12 @@ async function readHrworks(from: string, to: string): Promise<HrworksDay[] | str
 
 let writing = false;
 
-/** A "Write" button for days that would be created. Overrides come later. */
+/** A "Write" button for days to create, an "Override" button for days to change. */
 function writeCell(day: PlannedDay | undefined): HTMLTableCellElement {
   const cell = el('td');
-  if (day?.action !== 'create') return cell;
-  const button = el('button', 'Write', 'secondary write');
+  if (day?.action !== 'create' && day?.action !== 'override') return cell;
+  const label = day.action === 'create' ? 'Write' : 'Override';
+  const button = el('button', label, 'secondary write');
   button.type = 'button';
   button.addEventListener('click', () => void writeOne(day, cell));
   cell.append(button);
@@ -90,16 +92,43 @@ function writeCell(day: PlannedDay | undefined): HTMLTableCellElement {
 }
 
 async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<void> {
-  if (writing || day.action !== 'create') return;
+  if (writing || (day.action !== 'create' && day.action !== 'override')) return;
   const { date } = day.harvest;
   const { start, end } = day.times;
+  // A save whose result couldn't be checked must be looked at first. After a checked save the
+  // fresh preview is what counts: writeDay refuses unless HRworks still shows what it showed.
   const earlier = wasWritten(await loadWriteLog(), date);
-  if (earlier) {
-    cell.replaceChildren(el('span', `Already written ${earlier.at.slice(0, 10)}`, 'warn'));
+  if (earlier?.result === 'unknown') {
+    cell.replaceChildren(
+      el(
+        'span',
+        `Saved ${earlier.at.slice(0, 10)} without a check. Look at HRworks first.`,
+        'warn',
+      ),
+    );
     return;
   }
   const net = formatDuration(day.harvest.netMinutes);
-  if (!confirm(`Enter ${start}–${end} (${net} after breaks) on ${date} in HRworks?`)) return;
+  const previous = day.action === 'override' ? day.previous : [];
+  const old = previous.map((entry) => `${entry.start}–${entry.end}`).join(', ');
+  const shownDate = fullDate.format(new Date(`${date}T00:00:00Z`));
+  const override = day.action === 'override';
+  const confirmed = await confirmDialog({
+    title: override ? `Override ${shownDate} in HRworks?` : `Write ${shownDate} to HRworks?`,
+    rows: [
+      ...(override ? [{ label: 'HRworks now', value: old, old: true }] : []),
+      { label: override ? 'New' : 'Enter', value: `${start}–${end}` },
+      { label: 'After breaks', value: `${net} (Harvest)` },
+    ],
+    note:
+      (earlier ? `punchline wrote this day on ${earlier.at.slice(0, 10)}. ` : '') +
+      (override
+        ? 'HRworks has no undo. punchline logs the old times before it saves.'
+        : 'punchline checks the day in HRworks after saving.'),
+    confirmLabel: override ? 'Override' : 'Write',
+    icon: '../icons/icon-48.png',
+  });
+  if (!confirmed) return;
 
   writing = true;
   for (const button of document.querySelectorAll<HTMLButtonElement>('button.write')) {
@@ -108,18 +137,28 @@ async function writeOne(day: PlannedDay, cell: HTMLTableCellElement): Promise<vo
   cell.replaceChildren(el('span', 'Writing…', 'muted'));
   const request: WriteDayRequest = {
     type: 'punchline/write-day',
-    day: { date, start, end, expectedMinutes: day.harvest.netMinutes },
+    day: {
+      date,
+      start,
+      end,
+      expectedMinutes: day.harvest.netMinutes,
+      ...(day.action === 'override' ? { previous } : {}),
+    },
   };
+  // Logged before anything is sent, so the old times survive even if the tab closes mid-save.
+  const attempt = { date, action: day.action, start, end, previous };
+  await appendWriteLog({
+    ...attempt,
+    at: new Date().toISOString(),
+    result: 'unknown',
+    message: 'Started, no result yet.',
+  });
   const response = await sendToHrworks<WriteDayResponse>(request);
   const result =
     typeof response === 'string' ? { ok: false as const, error: response, saved: false } : response;
   await appendWriteLog({
+    ...attempt,
     at: new Date().toISOString(),
-    date,
-    action: 'create',
-    start,
-    end,
-    previous: [],
     result: result.ok ? 'ok' : result.saved ? 'unknown' : 'failed',
     message: result.ok ? '' : result.error,
   });
@@ -185,3 +224,12 @@ form.addEventListener('submit', async (event) => {
 const range = defaultRange(localToday());
 from.value = range.from;
 to.value = range.to;
+
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-preset]')) {
+  button.addEventListener('click', () => {
+    const preset = presetRange(button.dataset.preset as RangePreset, localToday());
+    from.value = preset.from;
+    to.value = preset.to;
+    form.requestSubmit();
+  });
+}

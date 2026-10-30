@@ -19,6 +19,12 @@ describe('wasWritten', () => {
     expect(wasWritten([{ ...entry, result: 'failed' }], '2026-08-28')).toBeNull();
     expect(wasWritten([entry], '2026-08-31')).toBeNull();
   });
+
+  it('goes by the latest attempt for a day', () => {
+    const started = { ...entry, result: 'unknown' as const };
+    expect(wasWritten([started, { ...entry, result: 'failed' }], '2026-08-28')).toBeNull();
+    expect(wasWritten([started, entry], '2026-08-28')).toBe(entry);
+  });
 });
 
 describe('write log storage', () => {
