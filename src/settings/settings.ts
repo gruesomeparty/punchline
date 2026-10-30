@@ -20,7 +20,11 @@ export type Settings = {
   startTime: string;
   /** What to do when HRworks already has different hours: show them, or replace them. */
   conflictMode: ConflictMode;
+  /** Where "Open preview" shows the preview: Chrome's side panel or on top of HRworks. */
+  previewMode: PreviewMode;
 };
+
+export type PreviewMode = 'sidePanel' | 'overlay';
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   harvestToken: '',
@@ -29,6 +33,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   breakRules: BREAK_PRESETS.ch.rules,
   startTime: '08:00',
   conflictMode: 'flag',
+  previewMode: 'sidePanel',
 };
 
 function isRule(value: unknown): value is BreakRule {
@@ -64,6 +69,7 @@ export function normalizeSettings(raw: unknown): Settings {
           : BREAK_PRESETS[breakPreset].rules,
     startTime: parseTime(startTime) === null ? DEFAULT_SETTINGS.startTime : startTime,
     conflictMode: stored.conflictMode === 'override' ? 'override' : 'flag',
+    previewMode: stored.previewMode === 'overlay' ? 'overlay' : 'sidePanel',
   };
 }
 

@@ -46,7 +46,7 @@ function renderRows(rows: readonly DayRow[], planned: readonly PlannedDay[] | nu
         el('td', cells.harvest),
         el('td', cells.hrworks),
         el('td', cells.enter),
-        el('td', cells.break),
+        el('td', cells.break, 'col-break'),
         el('td', cells.action, cells.actionKind),
         el('td', cells.note, cells.noteKind),
         writeCell(planned?.[i]),
