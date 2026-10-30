@@ -213,6 +213,8 @@ export class FakeHrworks {
   ignoreWeekClicks = 0;
   /** How many "+" clicks to ignore, like HRworks does while it re-renders. */
   ignoreAddClicks = 0;
+  /** How many "Ja" clicks to ignore, like HRworks does while the dialog fades in. */
+  ignoreYesClicks = 0;
   /** The entry HRworks asks about before deleting it. */
   asking: { day: FakeDay; index: number; start: string } | null = null;
   /** Validation message to show instead of saving. */
@@ -342,6 +344,10 @@ export class FakeHrworks {
         this.asking = { day: found.day, index, start: found.start };
       });
     } else if (guide === WRITE_GUIDE.confirmYes) {
+      if (this.ignoreYesClicks > 0) {
+        this.ignoreYesClicks--;
+        return;
+      }
       const asking = this.asking;
       this.later(() => {
         this.asking = null;

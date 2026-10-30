@@ -264,8 +264,13 @@ async function removeExtraOpenEntries(
           'Click "Nein" and reload HRworks.',
       );
     }
-    yes()?.click();
-    await session.pause();
+    // The dialog fades in, and a click before HRworks has wired it up does nothing. So "Ja" is
+    // clicked again while the same dialog is still open.
+    for (let attempt = 1; attempt <= 3 && yes(); attempt++) {
+      await session.pause();
+      yes()?.click();
+      await session.waitFor(() => !yes(), session.timeoutMs / 3);
+    }
     await session.until(() => current().length < before, `remove an extra entry on ${date}`);
   }
   return removed;
