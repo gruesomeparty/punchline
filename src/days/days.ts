@@ -35,6 +35,8 @@ const writeAll = byId<HTMLButtonElement>('write-all');
 const debug = byId<HTMLDetailsElement>('debug');
 const debugText = byId<HTMLPreElement>('debug-text');
 let plannedDays: PlannedDay[] = [];
+/** When HRworks was last read for the preview, as an ISO time. */
+let previewReadAt = '';
 
 const weekdays = new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' });
 const fullDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' });
@@ -201,23 +203,28 @@ const LOST_CONTACT = 'Lost contact with the HRworks tab while it was writing.';
 /** Writes the days week by week, after a confirm. Stops at the first week with a problem. */
 async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<void> {
   if (writing || candidates.length === 0) return;
-  // A save whose result couldn't be checked must be looked at first. After a checked save the
-  // fresh preview is what counts: the write refuses unless HRworks still shows what it showed.
+  // A save whose result couldn't be checked needs a preview read after it, so the confirm shows
+  // what HRworks has now. From there the write refuses unless HRworks still shows the preview.
   const log = await loadWriteLog();
   const days: WritableDay[] = [];
   let earlier: WriteLogEntry | null = null;
+  let held = 0;
   for (const day of candidates) {
     const last = wasWritten(log, day.harvest.date);
-    if (last?.result === 'unknown') {
+    if (last?.result === 'unknown' && last.at >= previewReadAt) {
+      held++;
       showInCell(
         day.harvest.date,
-        `Saved ${last.at.slice(0, 10)} without a check. Look at HRworks first.`,
+        'Saved without a check. Load the preview again to see what HRworks has now.',
         'warn',
       );
     } else {
       days.push(day);
       earlier = last;
     }
+  }
+  if (held > 0 && days.length === 0) {
+    showStatus('Load the preview again first: an earlier save could not be checked.', 'error');
   }
   if (days.length === 0 || !(await confirmWrite(days, earlier))) return;
 
@@ -319,6 +326,7 @@ form.addEventListener('submit', async (event) => {
     renderRows(rows, null);
 
     showStatus('Reading HRworks…');
+    previewReadAt = new Date().toISOString();
     const hrworks = await readHrworks(from.value, to.value);
     await showDebugLog();
     if (typeof hrworks === 'string') {
