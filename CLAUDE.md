@@ -44,6 +44,8 @@ npm run verify         # everything CI runs. Must pass before you hand work back
   tested without Chrome. Keep entry points thin.
 - Keep dependencies minimal. Ask before adding one.
 - Comments explain _why_, not _what_.
+- Never put Claude session URLs (`Claude-Session:` trailers, claude.ai links) in commit
+  messages or PR descriptions.
 
 ## Security rules (non-negotiable)
 
