@@ -42,6 +42,9 @@ Open `chrome://extensions`, enable _Developer mode_, click _Load unpacked_ and p
 2. Add tests for new logic. Coverage must stay above the threshold in `vitest.config.ts`.
 3. Run `npm run verify` before pushing.
 4. Open a PR. CI, CodeQL, the security scans and a review must pass before merge.
+5. Title the PR as a [Conventional Commit](https://www.conventionalcommits.org), e.g.
+   `feat(popup): show sync status`. PRs are squash-merged, so the title becomes the commit on
+   `main`. The `PR title` workflow checks it.
 
 ### GitHub settings
 
