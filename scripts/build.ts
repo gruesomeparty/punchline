@@ -3,12 +3,22 @@ import { cp, mkdir, rm } from 'node:fs/promises';
 import { type BuildOptions, build, context } from 'esbuild';
 
 const outdir = 'dist';
-const staticFiles = ['manifest.json', 'popup/popup.html', 'popup/popup.css', 'icons'];
+const staticFiles = [
+  'manifest.json',
+  'popup/popup.html',
+  'popup/popup.css',
+  'options/options.html',
+  'days/days.html',
+  'ui/page.css',
+  'icons',
+];
 
 const options: BuildOptions = {
   entryPoints: {
     background: 'src/background.ts',
     'popup/popup': 'src/popup/popup.ts',
+    'options/options': 'src/options/options.ts',
+    'days/days': 'src/days/days.ts',
   },
   outdir,
   bundle: true,

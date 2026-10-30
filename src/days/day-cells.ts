@@ -1,0 +1,58 @@
+// What the days table shows for each row. Kept apart from the page so it can be tested.
+
+import { addDays, formatDuration, isIsoDate } from '../lib/time.ts';
+import type { DayRow } from './harvest-days.ts';
+
+export type NoteKind = '' | 'muted' | 'warn' | 'error';
+
+export type DayCells = {
+  harvest: string;
+  start: string;
+  end: string;
+  break: string;
+  note: string;
+  noteKind: NoteKind;
+};
+
+function note(row: DayRow): [string, NoteKind] {
+  switch (row.status) {
+    case 'times':
+      return ['', ''];
+    case 'no-hours':
+      return row.weekend ? ['Weekend', 'muted'] : ['No hours, check manually', 'warn'];
+    case 'incomplete':
+      return [row.reason, 'muted'];
+    case 'error':
+      return [row.error, 'error'];
+  }
+}
+
+export function dayCells(row: DayRow): DayCells {
+  const times = row.status === 'times' ? row.times : null;
+  const [text, kind] = note(row);
+  return {
+    harvest: row.netMinutes > 0 ? formatDuration(row.netMinutes) : '–',
+    start: times?.start ?? '',
+    end: times?.end ?? '',
+    break: times ? formatDuration(times.breakMinutes) : '',
+    note: text,
+    noteKind: kind,
+  };
+}
+
+/** This month up to yesterday. On the 1st, that's the whole previous month. */
+export function defaultRange(today: string): { from: string; to: string } {
+  const yesterday = addDays(today, -1);
+  return { from: `${yesterday.slice(0, 7)}-01`, to: yesterday };
+}
+
+export const MAX_DAYS = 400;
+
+/** Why a date range can't be loaded, or null if it can. */
+export function rangeError(from: string, to: string): string | null {
+  if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
+    return 'Pick a start date on or before the end date.';
+  }
+  if (addDays(from, MAX_DAYS) <= to) return `Pick at most ${MAX_DAYS} days at a time.`;
+  return null;
+}

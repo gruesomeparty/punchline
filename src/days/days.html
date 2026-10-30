@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>punchline</title>
+    <link rel="stylesheet" href="../ui/page.css" />
+    <script type="module" src="days.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Harvest days</h1>
+      <form id="range" class="row">
+        <div>
+          <label for="from">From</label>
+          <input id="from" type="date" required />
+        </div>
+        <div>
+          <label for="to">To</label>
+          <input id="to" type="date" required />
+        </div>
+        <button type="submit">Load from Harvest</button>
+      </form>
+      <p class="hint">
+        Read only. Shows the start and end time each day needs in HRworks so that, after breaks,
+        it matches Harvest. Nothing is written to HRworks yet.
+      </p>
+      <div id="status" class="status" role="status"></div>
+      <table id="days" hidden>
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Harvest</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Break</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </main>
+  </body>
+</html>

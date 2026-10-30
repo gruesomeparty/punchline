@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>punchline settings</title>
+    <link rel="stylesheet" href="../ui/page.css" />
+    <script type="module" src="options.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>punchline settings</h1>
+      <form id="settings" novalidate>
+        <fieldset>
+          <legend>Harvest</legend>
+          <label for="token">Personal access token</label>
+          <input id="token" type="password" autocomplete="off" spellcheck="false" />
+          <label for="account">Account ID</label>
+          <input id="account" inputmode="numeric" autocomplete="off" spellcheck="false" />
+          <p class="hint">
+            Create both at id.getharvest.com/developers. They're stored only in this browser.
+          </p>
+          <p>
+            <button id="test" type="button" class="secondary">Test connection</button>
+            <span id="test-result" role="status"></span>
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>HRworks times</legend>
+          <label for="start">Start time for every day</label>
+          <input id="start" type="time" />
+
+          <label for="preset">Break rules</label>
+          <select id="preset">
+            <option value="ch">Switzerland</option>
+            <option value="de">Germany</option>
+            <option value="custom">Custom</option>
+          </select>
+          <table id="rules">
+            <thead>
+              <tr>
+                <th>More than (hours)</th>
+                <th>Break (minutes)</th>
+                <th><span class="muted">Remove</span></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button id="add-rule" type="button" class="secondary">Add rule</button>
+          <p class="hint">
+            HRworks takes these breaks off the time you enter, so punchline adds them on top of
+            your Harvest hours. They must match the break rules in HRworks, or the check after each
+            save fails.
+          </p>
+        </fieldset>
+
+        <button type="submit">Save</button>
+        <div id="status" class="status" role="status"></div>
+      </form>
+    </main>
+  </body>
+</html>
