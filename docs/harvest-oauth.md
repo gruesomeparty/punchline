@@ -21,14 +21,20 @@ The button only shows once `HARVEST_CLIENT_ID` in `src/harvest/oauth.ts` is set.
 
 ## Maintainer setup
 
-1. **Give the extension a stable ID.** The redirect URL contains the extension ID, and an
-   unpacked extension's ID depends on its folder. Add the public key as `"key"` in
-   `src/manifest.json`. Either copy it from the Chrome Web Store item (Package → Public key) or
-   generate a key pair locally and keep the private key out of every repository.
-2. **Register the OAuth app** at <https://id.getharvest.com/developers>:
+The extension ID is fixed by the public key in `"key"` in `src/manifest.json`:
+
+- Extension ID: `flnlojnobcjpbpihgmmpojipadmpeakl`
+- Redirect URL: `https://flnlojnobcjpbpihgmmpojipadmpeakl.chromiumapp.org/`
+
+The matching private key is kept by the maintainer, outside every repository. It's only needed
+for the first Chrome Web Store upload: put it in the zip root as `key.pem` so the store keeps
+this ID.
+
+1. **Register the OAuth app** at <https://id.getharvest.com/developers> → **Create new OAuth2
+   application**:
    - Name: punchline
-   - Redirect URL: `https://<extension-id>.chromiumapp.org/` (from `chrome://extensions`)
-   - Multi account: yes, if people have more than one Harvest account
-   - Products: Harvest only
-3. **Set the client ID** in `HARVEST_CLIENT_ID`. Client IDs are public, so it can be committed.
+   - Redirect URL: the one above
+   - Multi account: yes
+   - Products: Harvest
+2. **Set the client ID** in `HARVEST_CLIENT_ID`. Client IDs are public, so it can be committed.
    Never commit the client secret. This flow doesn't use it.
