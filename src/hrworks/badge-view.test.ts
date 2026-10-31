@@ -36,6 +36,15 @@ describe('badgeView', () => {
     expect(badgeView(override)).toMatchObject({ old: '07:30–18:00', text: '08:00–16:30' });
   });
 
+  it('puts legal warnings only in the hover text', () => {
+    const long: DayRow = { ...harvest, warnings: ['Sunday work'] };
+    expect(badgeView({ harvest: long, hrworks, action: 'create', times })).toMatchObject({
+      text: '+ 08:00–16:30',
+      title: 'Write this day. ⚠ Sunday work',
+      writable: true,
+    });
+  });
+
   it('keeps matching days quiet and explains flags on hover', () => {
     expect(badgeView({ harvest, hrworks, action: 'skip', reason: 'x' })?.text).toBe('✓');
     expect(badgeView({ harvest, hrworks, action: 'flag', reason: 'Differs' })).toMatchObject({

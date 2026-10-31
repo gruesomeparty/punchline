@@ -23,7 +23,8 @@ error-prone, especially if you're a few hundred days behind.
 1. Reads your daily totals from the Harvest API.
 2. Adds the mandatory breaks, which gives a start and end time for each day.
 3. Compares each day with what's already in HRworks (net hours, after breaks).
-4. Shows a preview of what it's going to do.
+4. Shows a preview of what it's going to do, with a warning on Sundays and, under German
+   rules, on days over 10 hours. It still writes those days, because the hours were worked.
 5. Fills in the HRworks forms in your logged-in browser session, one day at a time, and
    verifies every save.
 

@@ -14,6 +14,8 @@ export type DayView = {
   details: string;
   note: string;
   noteKind: string;
+  /** Legal limits the Harvest hours go over. Only a hint: the day is still written. */
+  warning: string;
   /** Nothing to do on this day, so it can be folded away. */
   quiet: boolean;
 };
@@ -30,6 +32,7 @@ export function isQuiet(planned: PlannedDay | null): boolean {
 
 export function dayView(row: DayRow, planned: PlannedDay | null): DayView {
   const cells = previewCells(row, planned);
+  const warning = row.status === 'times' ? (row.warnings ?? []).join(' · ') : '';
   const enter = cells.enter.replace('–', ' → ');
   const details = [
     `Harvest ${cells.harvest}`,
@@ -44,6 +47,7 @@ export function dayView(row: DayRow, planned: PlannedDay | null): DayView {
       details: details.join(' · '),
       note: cells.note,
       noteKind: cells.noteKind,
+      warning,
       quiet: false,
     };
   }
@@ -60,6 +64,7 @@ export function dayView(row: DayRow, planned: PlannedDay | null): DayView {
     details: details.join(' · '),
     note: cells.note,
     noteKind: cells.noteKind,
+    warning,
     quiet: isQuiet(planned),
   };
 }
