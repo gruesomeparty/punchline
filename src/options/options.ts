@@ -18,7 +18,6 @@ const start = byId<HTMLInputElement>('start');
 const preset = byId<HTMLSelectElement>('preset');
 const rulesBody = byId<HTMLTableElement>('rules').tBodies[0] as HTMLTableSectionElement;
 const conflict = form.elements.namedItem('conflict') as RadioNodeList;
-const preview = form.elements.namedItem('preview') as RadioNodeList;
 const theme = form.elements.namedItem('theme') as RadioNodeList;
 const reveal = byId<HTMLButtonElement>('reveal');
 const weekend = byId<HTMLInputElement>('weekend');
@@ -82,7 +81,6 @@ function readForm(): Settings {
     breakRules: readRules(),
     startTime: start.value,
     conflictMode: conflict.value === 'override' ? 'override' : 'flag',
-    previewMode: preview.value === 'sidePanel' ? 'sidePanel' : 'inline',
     weekendHours: weekend.checked,
     debugLog: debugLog.checked,
     theme: theme.value === 'light' || theme.value === 'dark' ? theme.value : 'system',
@@ -94,7 +92,6 @@ function fillForm(settings: Settings): void {
   account.value = settings.harvestAccountId;
   start.value = settings.startTime;
   conflict.value = settings.conflictMode;
-  preview.value = settings.previewMode;
   weekend.checked = settings.weekendHours;
   debugLog.checked = settings.debugLog;
   theme.value = settings.theme;

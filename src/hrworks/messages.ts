@@ -81,14 +81,3 @@ export function isHarvestRowsRequest(message: unknown): message is HarvestRowsRe
     m.type === 'punchline/harvest-rows' && typeof m.from === 'string' && typeof m.to === 'string'
   );
 }
-
-/** Asks the badges in the HRworks tab to compare the shown month with Harvest. */
-export type InlineCheckRequest = { type: 'punchline/inline-check' };
-
-export function isInlineCheckRequest(message: unknown): message is InlineCheckRequest {
-  return (
-    typeof message === 'object' &&
-    message !== null &&
-    (message as Record<string, unknown>).type === 'punchline/inline-check'
-  );
-}

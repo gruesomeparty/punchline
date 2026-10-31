@@ -1,14 +1,12 @@
-// Content script in HRworks tabs. Reads or writes days when the punchline pages ask for it,
-// one request at a time.
+// Content script in HRworks tabs. Shows punchline's bar and badges on the Arbeitszeiten page, and
+// reads or writes days when the punchline pages ask for it, one request at a time.
 
-import { loadSettings } from '../settings/settings.ts';
-import { type Inline, mountInline } from './inline.ts';
+import { mountInline } from './inline.ts';
 import {
   type DebugLogResponse,
   type HarvestRowsRequest,
   type HarvestRowsResponse,
   isDebugLogRequest,
-  isInlineCheckRequest,
   isReadDaysRequest,
   isWriteDaysRequest,
   type ReadDaysResponse,
@@ -37,42 +35,19 @@ async function exclusive(task: () => Promise<void>): Promise<boolean> {
   return true;
 }
 
-// The badges in HRworks, while the preview mode in Settings is "In HRworks".
-let inline: Inline | null = null;
-
-function startInline(): Inline {
-  inline ??= mountInline(document, {
-    log: (line) => trace.log(line),
-    exclusive,
-    loadRows: async (from, to) => {
-      const request: HarvestRowsRequest = { type: 'punchline/harvest-rows', from, to };
-      return (await chrome.runtime.sendMessage(request)) as HarvestRowsResponse;
-    },
-  });
-  return inline;
-}
-
-async function syncInline(): Promise<void> {
-  const { previewMode } = await loadSettings();
-  if (previewMode === 'inline') {
-    startInline();
-  } else {
-    inline?.unmount();
-    inline = null;
-  }
-}
-
-void syncInline();
-chrome.storage.onChanged.addListener(() => void syncInline());
+// The bar and badges in HRworks. They stay for the life of the tab and wait for the
+// Arbeitszeiten page to show up.
+mountInline(document, {
+  log: (line) => trace.log(line),
+  exclusive,
+  loadRows: async (from, to) => {
+    const request: HarvestRowsRequest = { type: 'punchline/harvest-rows', from, to };
+    return (await chrome.runtime.sendMessage(request)) as HarvestRowsResponse;
+  },
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
-
-  if (isInlineCheckRequest(message)) {
-    sendResponse({ ok: true });
-    void startInline().check();
-    return false;
-  }
 
   if (isDebugLogRequest(message)) {
     const response: DebugLogResponse = { lines: trace.lines() };

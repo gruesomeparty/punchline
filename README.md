@@ -75,13 +75,15 @@ Requires [Node.js](https://nodejs.org/) 24 and
 ## Usage
 
 1. Open HRworks Arbeitszeiten and stay logged in.
-2. Click "Compare with Harvest" in the punchline bar under the month picker, or click the
-   punchline icon and Open preview. Every day row gets a badge: the times to create, old → new
-   to override, ⚠ to check, or ✓ when it matches.
-3. Click a badge to write that day, or Write all and untick any day you want to leave out.
+2. Open a week and punchline compares it with Harvest right away, or click "Compare with
+   Harvest" in the punchline bar under the month picker for the whole month. Every day row gets
+   a badge: the times to create, old → new to override, ⚠ to check, or ✓ when it matches.
+3. Click a badge to write that day, Sync week for the open week, or Write all and untick any
+   day you want to leave out.
 
-Prefer a list? Set Settings → Open the preview → Side panel. There you pick your dates, days
-that already match fold away, and you write one day or all of them.
+Prefer a list? Click the punchline icon and open the preview in Chrome's side panel or a tab.
+There you pick your dates, days that already match fold away, and you write one day or all of
+them.
 
 If anything looks off (a mismatch, an unexpected page, an expired session), punchline stops and
 tells you why. Runs can be resumed.

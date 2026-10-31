@@ -20,8 +20,6 @@ export type Settings = {
   startTime: string;
   /** What to do when HRworks already has different hours: show them, or replace them. */
   conflictMode: ConflictMode;
-  /** Where "Open preview" works: badges inside HRworks, or Chrome's side panel. */
-  previewMode: PreviewMode;
   /** Write Harvest hours on days without a work plan in HRworks, such as weekends. */
   weekendHours: boolean;
   /** Shows the HRworks steps of the latest run in the preview, for troubleshooting. */
@@ -29,9 +27,6 @@ export type Settings = {
   /** Light, dark, or whatever the system uses. */
   theme: Theme;
 };
-
-/** Badges inside HRworks' own page, or punchline's page in Chrome's side panel. */
-export type PreviewMode = 'inline' | 'sidePanel';
 
 export type Theme = 'system' | 'light' | 'dark';
 
@@ -42,7 +37,6 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   breakRules: BREAK_PRESETS.ch.rules,
   startTime: '08:00',
   conflictMode: 'flag',
-  previewMode: 'inline',
   weekendHours: false,
   debugLog: false,
   theme: 'system',
@@ -81,7 +75,6 @@ export function normalizeSettings(raw: unknown): Settings {
           : BREAK_PRESETS[breakPreset].rules,
     startTime: parseTime(startTime) === null ? DEFAULT_SETTINGS.startTime : startTime,
     conflictMode: stored.conflictMode === 'override' ? 'override' : 'flag',
-    previewMode: stored.previewMode === 'sidePanel' ? 'sidePanel' : 'inline',
     weekendHours: stored.weekendHours === true,
     debugLog: stored.debugLog === true,
     theme: stored.theme === 'light' || stored.theme === 'dark' ? stored.theme : 'system',
