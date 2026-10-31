@@ -15,3 +15,10 @@ id = "harvest-oauth-token"
 description = "Harvest OAuth access or refresh token"
 regex = '''\b\d{4,10}\.(?:at|rt)\.[A-Za-z0-9_-]{40,}'''
 keywords = [".at.", ".rt."]
+
+# The manifest "key" is the extension's public key. It pins the extension ID that the Harvest
+# OAuth redirect URL depends on, and is public by design. Only this exact value is allowed.
+[[allowlists]]
+description = "Public extension key in src/manifest.json"
+targetRules = ["generic-api-key"]
+regexes = ['''^MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxmmu1PXNyBxnAv7ZUOJjSQGvi4sdUGa0zRSBuEOrxSSyNG3VZlG7eCfHbzi3tQ2bG8mIp9GIHufk1In3YjBprTbxl3ZJ6Vfe98lgkms7B5CW/4MtLS/AZTxZ33fp9qD77sCE5oM\+qK88ZKGD3wAwYfthCb\+2Yca23DcpGDO/J/D7r6wgRo5upKuj/7kwZ7wI2Kbud/jGdSMMH0X3rF\+SS8yE35TUYp0GkbnClzjoxaCdh9njVSTJWiPgWstw56QT9TUwYDh0RmBzE7YdJVPSqmjPFF8zSXF8t2ju67m5YFO1NWdY0Nb31mG21mSS0ZiX8qIVSwQ87LTKoBsbryf71QIDAQAB$''']
