@@ -87,3 +87,10 @@ export function monthsBetween(from: string, to: string): { year: number; month: 
   }
   return months;
 }
+
+/** The last day of the month that `date` is in. */
+export function lastDayOfMonth(date: string): string {
+  const day = new Date(`${date.slice(0, 7)}-01T00:00:00Z`);
+  day.setUTCMonth(day.getUTCMonth() + 1, 0);
+  return day.toISOString().slice(0, 10);
+}

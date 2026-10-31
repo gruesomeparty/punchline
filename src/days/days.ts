@@ -1,8 +1,7 @@
 // Preview page: loads Harvest totals for a range, reads the same days from the HRworks tab and
 // shows what punchline would do for each day, grouped by week. Writing happens after a confirm.
 
-import { fetchCurrentUser, fetchTimeEntries, HarvestError } from '../harvest/client.ts';
-import { dailyTotals } from '../harvest/daily-totals.ts';
+import { HarvestError } from '../harvest/client.ts';
 import {
   type DebugLogRequest,
   type DebugLogResponse,
@@ -13,19 +12,19 @@ import {
   type WriteDaysRequest,
   type WriteDaysResponse,
 } from '../hrworks/messages.ts';
-import type { WriteDay, WriteResult } from '../hrworks/write.ts';
-import { formatDuration, localToday, parseTime } from '../lib/time.ts';
-import { byHrworksWeek } from '../plan/batches.ts';
+import { localToday } from '../lib/time.ts';
 import { type HrworksDay, type PlannedDay, planDays } from '../plan/plan.ts';
-import { appendWriteLog, loadWriteLog, type WriteLogEntry, wasWritten } from '../plan/write-log.ts';
+import { loadWriteLog } from '../plan/write-log.ts';
+import { holdUnchecked, isWritable, runWrites, type WritableDay } from '../plan/write-runner.ts';
 import { loadSettings, validateSettings } from '../settings/settings.ts';
-import { confirmDialog, selectDialog } from '../ui/confirm-dialog.ts';
 import { byId, el } from '../ui/dom.ts';
 import { followThemeSetting } from '../ui/theme.ts';
+import { confirmWrite } from '../ui/write-confirm.ts';
 import { defaultRange, presetRange, type RangePreset, rangeError } from './day-cells.ts';
 import { groupDays, type ListItem } from './day-list.ts';
 import { dayView, foldLabel, summaryLine } from './day-view.ts';
-import { type DayRow, harvestDays } from './harvest-days.ts';
+import type { DayRow } from './harvest-days.ts';
+import { loadHarvestRows } from './load-harvest.ts';
 
 const form = byId<HTMLFormElement>('range');
 const from = byId<HTMLInputElement>('from');
@@ -218,12 +217,6 @@ let writing = false;
 /** The rendered row of each day, by date. Folded days have none until they're shown. */
 const dayElements = new Map<string, HTMLElement>();
 
-type WritableDay = PlannedDay & { action: 'create' | 'override' };
-
-function isWritable(day: PlannedDay | undefined): day is WritableDay {
-  return day?.action === 'create' || day?.action === 'override';
-}
-
 function showResult(item: HTMLElement, text: string, kind: string): void {
   item.querySelector('.day-action')?.replaceChildren();
   const result = item.querySelector('.day-result');
@@ -246,153 +239,37 @@ function setWriteButtons(disabled: boolean): void {
   }
 }
 
-const oldTimes = (day: WritableDay) =>
-  day.action === 'override'
-    ? day.previous.map((entry) => `${entry.start}–${entry.end}`).join(', ')
-    : '';
-
-function toWriteDay(day: WritableDay): WriteDay {
-  return {
-    date: day.harvest.date,
-    start: day.times.start,
-    end: day.times.end,
-    expectedMinutes: day.harvest.netMinutes,
-    ...(day.action === 'override' ? { previous: day.previous } : {}),
-    ...(day.hrworks?.workday === false ? { dayOff: true } : {}),
-  };
-}
-
-/** Asks before writing. Resolves with the days the user chose, or none when cancelled. */
-async function confirmWrite(
-  days: readonly WritableDay[],
-  earlier: WriteLogEntry | null,
-): Promise<WritableDay[]> {
-  const icon = '../icons/icon-48.png';
-  const [day] = days;
-  if (days.length === 1 && day) {
-    const { start, end } = day.times;
-    const override = day.action === 'override';
-    const shownDate = fullDate.format(utc(day.harvest.date));
-    const ok = await confirmDialog({
-      title: override ? `Override ${shownDate} in HRworks?` : `Write ${shownDate} to HRworks?`,
-      rows: [
-        ...(override ? [{ label: 'Before', value: oldTimes(day), old: true }] : []),
-        { label: override ? 'After' : 'Enter', value: `${start}–${end}` },
-        { label: 'After breaks', value: `${formatDuration(day.harvest.netMinutes)} (Harvest)` },
-      ],
-      note:
-        (earlier ? `punchline wrote this day on ${earlier.at.slice(0, 10)}. ` : '') +
-        (override
-          ? 'HRworks has no undo. punchline logs the old times before it saves. Extra open ' +
-            'entries on this day are removed.'
-          : 'punchline checks the day in HRworks after saving.'),
-      confirmLabel: override ? 'Override' : 'Write',
-      icon,
-    });
-    return ok ? [day] : [];
-  }
-  const overrides = days.filter((d) => d.action === 'override').length;
-  const chosen = await selectDialog({
-    title: `Write ${days.length} days to HRworks?`,
-    rows: days.map((d) => ({
-      label: shortDay(d.harvest.date),
-      ...(d.action === 'override' ? { before: oldTimes(d) } : {}),
-      after: `${d.times.start}–${d.times.end}`,
-    })),
-    note:
-      'punchline saves once per HRworks week and checks every day after. It stops at the first ' +
-      'problem; load the preview again to continue.' +
-      (overrides > 0 ? ' Old times are logged before an override.' : ''),
-    confirmLabel: 'Write',
-    icon,
-  });
-  return chosen?.flatMap((i) => days[i] ?? []) ?? [];
-}
-
 const LOST_CONTACT = 'Lost contact with the HRworks tab while it was writing.';
 
 /** Writes the days week by week, after a confirm. Stops at the first week with a problem. */
 async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<void> {
   if (writing || candidates.length === 0) return;
-  // A save whose result couldn't be checked needs a preview read after it, so the confirm shows
-  // what HRworks has now. From there the write refuses unless HRworks still shows the preview.
-  const log = await loadWriteLog();
-  const days: WritableDay[] = [];
-  let earlier: WriteLogEntry | null = null;
-  let held = 0;
-  for (const day of candidates) {
-    const last = wasWritten(log, day.harvest.date);
-    if (last?.result === 'unknown' && last.at >= previewReadAt) {
-      held++;
-      showInCell(
-        day.harvest.date,
-        'Saved without a check. Load the preview again to see what HRworks has now.',
-        'warn',
-      );
-    } else {
-      days.push(day);
-      earlier = last;
-    }
+  const { ready, held, earlier } = holdUnchecked(candidates, await loadWriteLog(), previewReadAt);
+  for (const day of held) {
+    showInCell(
+      day.harvest.date,
+      'Saved without a check. Load the preview again to see what HRworks has now.',
+      'warn',
+    );
   }
-  if (held > 0 && days.length === 0) {
+  if (held.length > 0 && ready.length === 0) {
     showStatus('Load the preview again first: an earlier save could not be checked.', 'error');
   }
-  const chosen = days.length > 0 ? await confirmWrite(days, earlier) : [];
+  const chosen =
+    ready.length > 0 ? await confirmWrite(ready, earlier, { icon: '../icons/icon-48.png' }) : [];
   if (chosen.length === 0) return;
 
   writing = true;
   setWriteButtons(true);
-  let written = 0;
-  let stop = '';
-  for (const week of byHrworksWeek(chosen, (day) => day.harvest.date)) {
-    for (const day of week) showInCell(day.harvest.date, 'Writing…', 'muted');
-    const attempts = week.map((day) => ({
-      date: day.harvest.date,
-      action: day.action,
-      start: day.times.start,
-      end: day.times.end,
-      previous: day.action === 'override' ? day.previous : [],
-    }));
-    // Logged before anything is sent, so the old times survive even if the tab closes mid-save.
-    for (const attempt of attempts) {
-      await appendWriteLog({
-        ...attempt,
-        at: new Date().toISOString(),
-        result: 'unknown',
-        message: 'Started, no result yet.',
-      });
-    }
-    const request: WriteDaysRequest = { type: 'punchline/write-days', days: week.map(toWriteDay) };
-    const response = await sendToHrworks<WriteDaysResponse>(request);
-    const results: WriteResult[] =
-      typeof response === 'string'
-        ? week.map(() => ({ ok: false, error: response, saved: response === LOST_CONTACT }))
-        : response;
-    for (const [i, attempt] of attempts.entries()) {
-      const result = results[i] ?? { ok: false, error: 'No answer for this day.', saved: true };
-      const removed = result.ok ? (result.removed ?? []) : [];
-      await appendWriteLog({
-        ...attempt,
-        previous: [...attempt.previous, ...removed],
-        at: new Date().toISOString(),
-        result: result.ok ? 'ok' : result.saved ? 'unknown' : 'failed',
-        message: result.ok ? '' : result.error,
-      });
-      if (result.ok) {
-        written++;
-        writtenDates.add(attempt.date);
-        const note = removed.length > 0 ? ` (removed ${removed.length} open entries)` : '';
-        showInCell(attempt.date, `Written and checked${note}`, 'ok');
-      } else {
-        const hint = result.saved ? ' Check this day in HRworks.' : '';
-        showInCell(attempt.date, `${result.error}${hint}`, 'error');
-        // Name the day that stopped the week, not a day that was only held back by it.
-        stop ||= result.blockedBy ? '' : attempt.date;
-      }
-    }
-    if (!stop && results.some((result) => !result.ok)) stop = week[0]?.harvest.date ?? '?';
-    if (stop) break;
-  }
+  const { written, stop } = await runWrites(chosen, {
+    send: async (week) => {
+      const request: WriteDaysRequest = { type: 'punchline/write-days', days: week };
+      return sendToHrworks<WriteDaysResponse>(request);
+    },
+    maySaved: (error) => error === LOST_CONTACT,
+    show: showInCell,
+  });
+  for (const date of written) writtenDates.add(date);
   writing = false;
   setWriteButtons(false);
   updateWriteAll();
@@ -400,8 +277,8 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
   if (chosen.length > 1) {
     showStatus(
       stop
-        ? `Wrote ${written} of ${chosen.length} days, then stopped at ${stop}. Load the preview ` +
-            'again to continue.'
+        ? `Wrote ${written.length} of ${chosen.length} days, then stopped at ${stop}. Load the ` +
+            'preview again to continue.'
         : `Wrote and checked all ${chosen.length} days.`,
       stop ? 'error' : 'ok',
     );
@@ -442,14 +319,7 @@ form.addEventListener('submit', async (event) => {
   results.clear();
   showStatus('Loading from Harvest…');
   try {
-    const credentials = { token: settings.harvestToken, accountId: settings.harvestAccountId };
-    const user = await fetchCurrentUser(credentials);
-    const entries = await fetchTimeEntries(credentials, user.id, from.value, to.value);
-    const rows = harvestDays(from.value, to.value, dailyTotals(entries), {
-      startMinutes: parseTime(settings.startTime) ?? 0,
-      rules: settings.breakRules,
-      today: localToday(),
-    });
+    const rows = await loadHarvestRows(settings, from.value, to.value);
     shownRows = rows;
     renderList();
 

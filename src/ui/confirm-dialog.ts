@@ -9,19 +9,21 @@ export type ConfirmOptions = {
   rows: { label: string; value: string; old?: boolean }[];
   note?: string;
   confirmLabel: string;
-  /** URL of the punchline icon, relative to the page. */
-  icon?: string;
+  /** The punchline icon: a URL relative to the page, or an element where images can't load. */
+  icon?: string | Element;
 };
 
-function header(title: string, iconUrl: string | undefined): HTMLDivElement {
+function header(title: string, iconSource: string | Element | undefined): HTMLDivElement {
   const head = el('div', '', 'confirm-head');
-  if (iconUrl) {
+  if (typeof iconSource === 'string') {
     const icon = el('img');
-    icon.src = iconUrl;
+    icon.src = iconSource;
     icon.alt = '';
     icon.width = 32;
     icon.height = 32;
     head.append(icon);
+  } else if (iconSource) {
+    head.append(iconSource);
   }
   head.append(el('h2', title));
   return head;
@@ -41,7 +43,7 @@ function actionButtons(confirmLabel: string) {
 }
 
 /** Shows the dialog and resolves with whether the user confirmed. Escape counts as cancel. */
-function show(dialog: HTMLDialogElement, cancel: HTMLButtonElement, doc: Document) {
+function show(dialog: HTMLDialogElement, cancel: HTMLButtonElement, container: ParentNode) {
   return new Promise<boolean>((resolve) => {
     cancel.addEventListener('click', () => dialog.close('cancel'));
     // Escape closes the dialog with an empty return value.
@@ -49,14 +51,18 @@ function show(dialog: HTMLDialogElement, cancel: HTMLButtonElement, doc: Documen
       resolve(dialog.returnValue === 'ok');
       dialog.remove();
     });
-    doc.body.append(dialog);
+    container.append(dialog);
     dialog.showModal();
     cancel.focus();
   });
 }
 
 /** Shows a modal dialog and resolves with whether the user confirmed. */
-export function confirmDialog(options: ConfirmOptions, doc: Document = document): Promise<boolean> {
+/** `container` is where the dialog goes, such as a shadow root on a page punchline is injected in. */
+export function confirmDialog(
+  options: ConfirmOptions,
+  container: ParentNode = document.body,
+): Promise<boolean> {
   const dialog = el('dialog', '', 'confirm');
   const head = header(options.title, options.icon);
 
@@ -69,7 +75,7 @@ export function confirmDialog(options: ConfirmOptions, doc: Document = document)
   dialog.append(head, list);
   if (options.note) dialog.append(el('p', options.note, 'hint'));
   dialog.append(form);
-  return show(dialog, cancel, doc);
+  return show(dialog, cancel, container);
 }
 
 export type SelectOptions = {
@@ -79,7 +85,7 @@ export type SelectOptions = {
   note?: string;
   /** The confirm button's label, followed by the number of selected rows. */
   confirmLabel: string;
-  icon?: string;
+  icon?: string | Element;
 };
 
 /**
@@ -88,7 +94,7 @@ export type SelectOptions = {
  */
 export async function selectDialog(
   options: SelectOptions,
-  doc: Document = document,
+  container: ParentNode = document.body,
 ): Promise<number[] | null> {
   const dialog = el('dialog', '', 'confirm');
   const list = el('div', '', 'changes');
@@ -119,6 +125,6 @@ export async function selectDialog(
   dialog.append(header(options.title, options.icon), list, count);
   if (options.note) dialog.append(el('p', options.note, 'hint'));
   dialog.append(form);
-  if (!(await show(dialog, cancel, doc))) return null;
+  if (!(await show(dialog, cancel, container))) return null;
   return boxes.flatMap((box, i) => (box.checked ? [i] : []));
 }

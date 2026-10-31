@@ -86,11 +86,18 @@ Requires [Node.js](https://nodejs.org/) 24 and
 ## Usage
 
 1. Open HRworks Arbeitszeiten and stay logged in.
-2. Click the punchline icon and open the preview, in Chrome's side panel by default.
-3. Pick your dates. Days that already match fold away, so you only see what needs action.
-4. Write one day, or Write all and untick any day you want to leave out. If anything looks off
-   (a mismatch, an unexpected page, an expired session), punchline stops and tells you why. Runs
-   can be resumed.
+2. Open a week and punchline compares it with Harvest right away, or click "Compare with
+   Harvest" in the punchline bar under the month picker for the whole month. Every day row gets
+   a badge: the times to create, old → new to override, ⚠ to check, or ✓ when it matches.
+3. Click a badge to write that day, Sync week for the open week, or Write all and untick any
+   day you want to leave out.
+
+Prefer a list? Click the punchline icon and open the preview in Chrome's side panel or a tab.
+There you pick your dates, days that already match fold away, and you write one day or all of
+them.
+
+If anything looks off (a mismatch, an unexpected page, an expired session), punchline stops and
+tells you why. Runs can be resumed.
 
 <p align="center">
   <img src="assets/screenshots/confirm-and-settings.png" alt="The Write all confirm with a Before and After row per day, next to the settings in dark mode" width="720" />
