@@ -5,7 +5,7 @@ client-side OAuth2 flow (`response_type=token`), which needs only a client ID. T
 client secret, so nothing secret ships in the extension. The personal access token stays
 available as a fallback.
 
-The button only shows once `HARVEST_CLIENT_ID` in `src/harvest/oauth.ts` is set.
+The client ID is `HARVEST_CLIENT_ID` in `src/harvest/oauth.ts`. While it is empty, the button stays hidden.
 
 ## How it works
 

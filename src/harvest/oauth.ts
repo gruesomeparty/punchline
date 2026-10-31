@@ -7,7 +7,7 @@ const AUTHORIZE = 'https://id.getharvest.com/oauth2/authorize';
  * Client ID of the punchline OAuth app registered at id.getharvest.com/developers. Client IDs
  * are public by design. Empty means the login button stays hidden and only tokens work.
  */
-export const HARVEST_CLIENT_ID = '';
+export const HARVEST_CLIENT_ID = '8M81ynuGcGACpfBXkj9lp6vF';
 
 /** Re-login a day early, so a sync never starts with a token that runs out halfway. */
 export const EXPIRY_MARGIN_MS = 24 * 60 * 60 * 1000;
