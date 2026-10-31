@@ -2,7 +2,7 @@
 
 ## Setup
 
-Prerequisites: [Node.js](https://nodejs.org/) 24 (see `.nvmrc`) and
+Prerequisites: [Node.js](https://nodejs.org/) 26 (see `.nvmrc`) and
 [gitleaks](https://github.com/gitleaks/gitleaks#installing) (`brew install gitleaks`).
 
 ```sh
