@@ -29,7 +29,10 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "sidePanel"],
+  "permissions": [
+    "storage",
+    "sidePanel"
+  ],
   "host_permissions": [
     "https://api.harvestapp.com/*",
     "https://hrworks.de/*",
@@ -37,8 +40,13 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://hrworks.de/*", "https://*.hrworks.de/*"],
-      "js": ["hrworks/content.js"],
+      "matches": [
+        "https://hrworks.de/*",
+        "https://*.hrworks.de/*"
+      ],
+      "js": [
+        "hrworks/content.js"
+      ],
       "run_at": "document_idle"
     }
   ]
