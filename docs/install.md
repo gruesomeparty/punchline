@@ -33,13 +33,17 @@ may remind you about it now and then. Leave it on.
 ## 4. Connect Harvest
 
 1. Click the punchline icon, then **Settings**.
-2. In Harvest, open [Developers → Personal Access Tokens](https://id.getharvest.com/developers)
-   and create a token.
-3. Copy the **token** and the **Account ID** into punchline's settings and click **Test
-   connection**.
-4. Check the start time and break rules (Switzerland or Germany).
+2. Click **Log in with Harvest**, sign in on Harvest's page and allow access. punchline fills in
+   your account by itself. The login lasts 14 days and renews on its own while you stay signed
+   in to Harvest.
+3. Check the start time and break rules (Switzerland or Germany).
 
-Your token stays in your browser and is only sent to Harvest. See the
+Login doesn't work, for example because your company blocks it? Use a personal access token
+instead: create one at [Harvest Developers](https://id.getharvest.com/developers), copy the
+**token** and the **Account ID** into the settings, and click **Test connection**.
+
+punchline never sees your Harvest password. Its token stays in your browser and is only sent to
+Harvest. See the
 [privacy policy](privacy-policy.md).
 
 ## 5. Use it
@@ -56,9 +60,9 @@ once so punchline can attach to it.
 ## Updating
 
 1. Download the new zip from the [latest release](https://github.com/gruesomeparty/punchline/releases/latest).
-2. Replace the contents of your `punchline` folder with the new files. Use the same folder,
-   so Chrome keeps your settings.
-3. On `chrome://extensions`, click the reload arrow on the punchline card.
+2. Replace the contents of your `punchline` folder with the new files.
+3. On `chrome://extensions`, click the reload arrow on the punchline card. Your settings and
+   Harvest login stay.
 
 Watch the repository (**Watch → Custom → Releases**) on GitHub to get an email for new
 versions.
@@ -70,15 +74,17 @@ Removing it also deletes your saved token and settings.
 
 ## Troubleshooting
 
-| Problem                                             | Fix                                                                                 |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| "Manifest file is missing or unreadable"            | You picked the wrong folder. Select the one that directly contains `manifest.json`. |
-| punchline is gone after a restart                   | The folder was moved or deleted. Unzip again and load it again.                     |
-| Settings are empty after an update                  | You loaded a different folder. Remove that copy and load the original folder.       |
-| Test connection fails                               | Check the token and Account ID in Harvest. A token copied with spaces fails.        |
-| No punchline bar in HRworks                         | Reload the HRworks tab. Pages opened before the install don't get it.               |
-| Preview says "Open HRworks Arbeitszeiten in a tab." | Open HRworks, log in and go to Arbeitszeiten.                                       |
-| Your company blocks Developer mode                  | Ask IT to allow it, or wait for the Chrome Web Store version.                       |
+| Problem                                             | Fix                                                                                           |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| "Manifest file is missing or unreadable"            | You picked the wrong folder. Select the one that directly contains `manifest.json`.           |
+| punchline is gone after a restart                   | The folder was moved or deleted. Unzip again and load it again.                               |
+| Settings are empty after an update                  | The extension was removed instead of reloaded. Log in with Harvest again.                     |
+| Harvest login window closes with an error           | Sign in to Harvest in a normal tab first, then try again, or use a personal access token.     |
+| Settings ask you to log in again                    | The 14-day login ran out while you were signed out of Harvest. Click **Log in with Harvest**. |
+| Test connection fails (token)                       | Check the token and Account ID in Harvest. A token copied with spaces fails.                  |
+| No punchline bar in HRworks                         | Reload the HRworks tab. Pages opened before the install don't get it.                         |
+| Preview says "Open HRworks Arbeitszeiten in a tab." | Open HRworks, log in and go to Arbeitszeiten.                                                 |
+| Your company blocks Developer mode                  | Ask IT to allow it, or wait for the Chrome Web Store version.                                 |
 
 ## For AI assistants helping someone install
 
@@ -153,11 +159,17 @@ What each kind of tool can do:
    If you can't reach a step, tell the user exactly what to click and give them the full path
    to paste into the folder dialog. Then carry on with the next step you can do.
 
-3. **Open the settings and stop there.** Click the punchline icon, then **Settings**. The user
-   creates a token at <https://id.getharvest.com/developers> and types the token and Account ID
-   in themselves. Never ask for the Harvest token in the chat, never type it for them, never
-   read it off the screen, and never write it to a file. After they've entered it, you may
-   click **Test connection** and report the result.
+3. **Start the Harvest login, and let the user sign in.** Click the punchline icon, then
+   **Settings**, then **Log in with Harvest**. Harvest's login window opens: the user types
+   their own Harvest email and password and clicks to allow access. You may click the allow
+   button once they're signed in, but never type, ask for or read their password. When the
+   window closes, check that the settings show them as logged in.
+
+   If login isn't possible, fall back to a personal access token: the user creates it at
+   <https://id.getharvest.com/developers> and types the token and Account ID in themselves.
+   Never ask for a Harvest token or password in the chat, never type it for them, never read it
+   off the screen, and never write it to a file. After they've entered it, you may click
+   **Test connection** and report the result.
 
 4. **Finish** by reloading any open HRworks tab, so the punchline bar appears, and telling the
    user it's installed, where the folder is (they must keep it), and
