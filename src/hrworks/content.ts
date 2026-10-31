@@ -1,17 +1,17 @@
-// Content script in HRworks tabs. Reads or writes days when the punchline pages ask for it,
-// one request at a time.
+// Content script in HRworks tabs. Shows punchline's bar and badges on the Arbeitszeiten page, and
+// reads or writes days when the punchline pages ask for it, one request at a time.
 
-import { loadSettings } from '../settings/settings.ts';
+import { mountInline } from './inline.ts';
 import {
   type DebugLogResponse,
+  type HarvestRowsRequest,
+  type HarvestRowsResponse,
   isDebugLogRequest,
   isReadDaysRequest,
-  isToggleOverlayRequest,
   isWriteDaysRequest,
   type ReadDaysResponse,
   type WriteDaysResponse,
 } from './messages.ts';
-import { toggleOverlay } from './overlay.ts';
 import { HrworksReadError, readHrworksDays } from './page.ts';
 import { createTrace, type Trace } from './trace.ts';
 import { writeDays } from './write.ts';
@@ -22,17 +22,32 @@ let trace: Trace = createTrace();
 
 const BUSY = 'punchline is already working in this HRworks tab.';
 
+/** Runs `task` unless a read or write is already going on in this tab. */
+async function exclusive(task: () => Promise<void>): Promise<boolean> {
+  if (busy) return false;
+  busy = true;
+  trace = createTrace();
+  try {
+    await task();
+  } finally {
+    busy = false;
+  }
+  return true;
+}
+
+// The bar and badges in HRworks. They stay for the life of the tab and wait for the
+// Arbeitszeiten page to show up.
+mountInline(document, {
+  log: (line) => trace.log(line),
+  exclusive,
+  loadRows: async (from, to) => {
+    const request: HarvestRowsRequest = { type: 'punchline/harvest-rows', from, to };
+    return (await chrome.runtime.sendMessage(request)) as HarvestRowsResponse;
+  },
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
-
-  if (isToggleOverlayRequest(message)) {
-    void loadSettings().then((settings) =>
-      sendResponse({
-        open: toggleOverlay(document, chrome.runtime.getURL('days/days.html'), settings.theme),
-      }),
-    );
-    return true;
-  }
 
   if (isDebugLogRequest(message)) {
     const response: DebugLogResponse = { lines: trace.lines() };
