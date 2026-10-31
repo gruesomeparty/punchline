@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/gruesomeparty/punchline/compare/v1.0.0...v1.1.0) (2026-10-31)
+
+
+### Features
+
+* warn about Sunday work and days over the legal daily maximum ([#24](https://github.com/gruesomeparty/punchline/issues/24)) ([578414d](https://github.com/gruesomeparty/punchline/commit/578414dbfa843f55406f487b069796a70aeb57f8))
+
 ## 1.0.0 (2026-10-31)
 
 
