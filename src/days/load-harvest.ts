@@ -6,6 +6,7 @@ import { dailyTotals } from '../harvest/daily-totals.ts';
 import { logInWithHarvest, needsRelogin, type OAuthLogin } from '../harvest/oauth.ts';
 import type { HarvestRowsResponse } from '../hrworks/messages.ts';
 import { localToday, parseTime } from '../lib/time.ts';
+import { dailyMaxFor } from '../rules/work-time.ts';
 import {
   applyLogin,
   loadSettings,
@@ -59,6 +60,7 @@ export async function loadHarvestRows(
     startMinutes: parseTime(settings.startTime) ?? 0,
     rules: settings.breakRules,
     today: localToday(),
+    maxNetMinutes: dailyMaxFor(settings.breakPreset),
   });
 }
 

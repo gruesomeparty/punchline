@@ -19,13 +19,16 @@ export type BadgeView = {
 /** The badge for a day, or null for days punchline has nothing to say about. */
 export function badgeView(day: PlannedDay): BadgeView | null {
   const times = isWritable(day) ? `${day.times.start}–${day.times.end}` : '';
+  // Legal limits stay in the hover text, so the badge still shows only times and the action.
+  const warnings = day.harvest.status === 'times' ? (day.harvest.warnings ?? []) : [];
+  const hint = warnings.length > 0 ? `. ⚠ ${warnings.join(', ')}` : '';
   switch (day.action) {
     case 'create':
       return {
         kind: 'create',
         old: '',
         text: `+ ${times}`,
-        title: 'Write this day',
+        title: `Write this day${hint}`,
         writable: true,
       };
     case 'override':
@@ -33,7 +36,7 @@ export function badgeView(day: PlannedDay): BadgeView | null {
         kind: 'override',
         old: isWritable(day) ? oldTimes(day) : '',
         text: times,
-        title: 'Override this day',
+        title: `Override this day${hint}`,
         writable: true,
       };
     case 'flag':

@@ -42,6 +42,15 @@ describe('dayView', () => {
     });
   });
 
+  it('shows legal warnings without changing the action', () => {
+    const long: DayRow = { ...harvest, warnings: ['Sunday work', 'More than 10:00 h'] };
+    expect(dayView(long, { ...create, harvest: long })).toMatchObject({
+      pill: { label: 'Create', kind: 'create' },
+      warning: 'Sunday work · More than 10:00 h',
+    });
+    expect(dayView(harvest, create).warning).toBe('');
+  });
+
   it('shows a create with what HRworks has now', () => {
     expect(dayView(harvest, create)).toMatchObject({
       times: '08:00 → 17:00',

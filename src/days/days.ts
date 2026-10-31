@@ -94,6 +94,7 @@ function renderDay({ row, planned }: Shown): HTMLElement {
   if (view.pill) line.append(el('span', view.pill.label, `pill ${view.pill.kind}`));
   main.append(line, el('div', view.details, 'details'));
   if (view.note) main.append(el('div', view.note, `day-note ${view.noteKind}`));
+  if (view.warning) main.append(el('div', `⚠ ${view.warning}`, 'day-note warn'));
   const result = el('div', '', 'day-result');
   main.append(result);
 
