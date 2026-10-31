@@ -21,6 +21,7 @@
     "coverage": "vitest run --coverage",
     "check:manifest": "node scripts/check-manifest.ts",
     "check:files": "node scripts/check-files.ts",
+    "check:release": "node scripts/check-release-tag.ts",
     "verify": "biome ci . && npm run typecheck && npm run check:files && npm run check:manifest && npm run coverage && npm run build && npm run package"
   },
   "devDependencies": {

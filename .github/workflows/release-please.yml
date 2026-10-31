@@ -1,0 +1,64 @@
+name: Release
+
+# release-please keeps a release PR open that bumps package.json, src/manifest.json and
+# CHANGELOG.md from the Conventional Commits on main. Merging it tags vX.Y.Z and creates the
+# GitHub Release; the second job then builds punchline-X.Y.Z.zip and attaches it.
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      # A token of its own, because the repo doesn't let GITHUB_TOKEN open PRs, and a PR opened
+      # with GITHUB_TOKEN wouldn't start the required checks either.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  zip:
+    name: Attach extension zip
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci --ignore-scripts
+      - run: npm run check:release -- "$TAG"
+      - run: npm run verify
+
+      - name: Write checksum
+        run: sha256sum punchline-*.zip > SHA256SUMS.txt
+
+      - name: Upload to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" punchline-*.zip SHA256SUMS.txt --repo "$GITHUB_REPOSITORY"

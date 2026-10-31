@@ -8,8 +8,6 @@ punchline is a Chrome extension that syncs daily working hours from Harvest (the
 truth) into HRworks. Instead of clicking through HRworks day by day, you pick a date range,
 check a preview and hit run.
 
-> **Status:** internal tool, work in progress.
-
 <p align="center">
   <img src="assets/screenshots/preview.png" alt="The preview in Chrome's side panel, in light and dark mode: days grouped by week, matching days folded, one day to create and one to override" width="720" />
 </p>
@@ -49,7 +47,18 @@ Override mode logs the old HRworks values before changing anything, since HRwork
 - From–to range
 - Single day
 
-## Setup
+## Install
+
+Free, from a zip file: download `punchline-<version>.zip` from the
+[latest release](https://github.com/gruesomeparty/punchline/releases/latest), unzip it to a
+folder you keep, and load it on `chrome://extensions` with **Developer mode** and **Load
+unpacked**. The [install guide](docs/install.md) has every step, updating, troubleshooting, and a
+section an AI assistant can follow to set it up for you.
+
+Maintainers: releases (release-please) and the store listing are described in
+[docs/chrome-web-store.md](docs/chrome-web-store.md).
+
+## Development setup
 
 Requires [Node.js](https://nodejs.org/) 24 and
 [gitleaks](https://github.com/gitleaks/gitleaks#installing).
