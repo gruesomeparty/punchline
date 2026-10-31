@@ -37,10 +37,14 @@ const MARK_SHAPES: [string, Record<string, string>][] = [
   ['path', { d: 'M19 14h5v-3l5 5-5 5v-3h-5z', fill: '#f59a23' }],
 ];
 
-function markIcon(doc: Document): SVGSVGElement {
+function markIcon(doc: Document, size = 20): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = doc.createElementNS(ns, 'svg');
-  for (const [name, value] of Object.entries({ viewBox: '0 0 32 32', width: '20', height: '20' })) {
+  for (const [name, value] of Object.entries({
+    viewBox: '0 0 32 32',
+    width: `${size}`,
+    height: `${size}`,
+  })) {
     svg.setAttribute(name, value);
   }
   for (const [tag, attributes] of MARK_SHAPES) {
@@ -365,7 +369,9 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
       }
       if (held.length > 0) refreshBadges();
       const chosen =
-        ready.length > 0 ? await confirmWrite(ready, earlier, { container: barRoot }) : [];
+        ready.length > 0
+          ? await confirmWrite(ready, earlier, { container: barRoot, icon: markIcon(doc, 32) })
+          : [];
       if (chosen.length === 0) return;
       busy = true;
       updateButtons();

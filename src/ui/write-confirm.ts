@@ -15,7 +15,7 @@ const shortDay = (date: string) => `${weekdays.format(utc(date))} ${Number(date.
 export async function confirmWrite(
   days: readonly WritableDay[],
   earlier: WriteLogEntry | null,
-  { icon, container = document.body }: { icon?: string; container?: ParentNode },
+  { icon, container = document.body }: { icon?: string | Element; container?: ParentNode },
 ): Promise<WritableDay[]> {
   const [day] = days;
   if (days.length === 1 && day) {
@@ -54,7 +54,7 @@ export async function confirmWrite(
       })),
       note:
         'punchline saves once per HRworks week and checks every day after. It stops at the first ' +
-        'problem; load the preview again to continue.' +
+        'problem; compare again to continue.' +
         (overrides > 0 ? ' Old times are logged before an override.' : ''),
       confirmLabel: 'Write',
       ...(icon ? { icon } : {}),

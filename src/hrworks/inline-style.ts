@@ -19,6 +19,7 @@ export const INLINE_STYLE = `
     --fg: #1d1d1f;
   }
   :host([data-theme="dark"]) {
+    color-scheme: dark;
     --accent: #a9a1ff;
     --on-accent: #1e1e1e;
     --warn: #f0b24a;
@@ -142,6 +143,14 @@ export const INLINE_STYLE = `
     box-sizing: border-box;
     box-shadow: 0 12px 40px rgb(0 0 0 / 25%);
     font: 13px/1.45 system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    cursor: pointer;
   }
   dialog.confirm::backdrop {
     background: rgb(0 0 0 / 35%);
@@ -189,10 +198,17 @@ export const INLINE_STYLE = `
   .changes label {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 2px 10px;
+    gap: 2px 12px;
     align-items: center;
-    padding: 6px 10px;
+    padding: 8px 12px;
+    font-variant-numeric: tabular-nums;
     cursor: pointer;
+  }
+  .changes label:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .changes label:has(input:not(:checked)) .change {
+    opacity: 0.45;
   }
   .changes label + label {
     border-top: 1px solid var(--line);
@@ -200,7 +216,18 @@ export const INLINE_STYLE = `
   .change {
     display: flex;
     flex-wrap: wrap;
+    align-items: baseline;
     gap: 2px 8px;
+  }
+  .change .old {
+    font-size: 12px;
+  }
+  .selected-count {
+    margin: 8px 0 0;
+  }
+  dialog.confirm .hint {
+    margin: 8px 0 0;
+    line-height: 1.4;
   }
   .change-day {
     font-weight: 600;

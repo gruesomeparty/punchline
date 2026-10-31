@@ -9,19 +9,21 @@ export type ConfirmOptions = {
   rows: { label: string; value: string; old?: boolean }[];
   note?: string;
   confirmLabel: string;
-  /** URL of the punchline icon, relative to the page. */
-  icon?: string;
+  /** The punchline icon: a URL relative to the page, or an element where images can't load. */
+  icon?: string | Element;
 };
 
-function header(title: string, iconUrl: string | undefined): HTMLDivElement {
+function header(title: string, iconSource: string | Element | undefined): HTMLDivElement {
   const head = el('div', '', 'confirm-head');
-  if (iconUrl) {
+  if (typeof iconSource === 'string') {
     const icon = el('img');
-    icon.src = iconUrl;
+    icon.src = iconSource;
     icon.alt = '';
     icon.width = 32;
     icon.height = 32;
     head.append(icon);
+  } else if (iconSource) {
+    head.append(iconSource);
   }
   head.append(el('h2', title));
   return head;
@@ -83,7 +85,7 @@ export type SelectOptions = {
   note?: string;
   /** The confirm button's label, followed by the number of selected rows. */
   confirmLabel: string;
-  icon?: string;
+  icon?: string | Element;
 };
 
 /**
