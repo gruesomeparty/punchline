@@ -39,7 +39,8 @@ Conventional Commit titles on `main`:
 
 1. Every merge to `main` updates an open **release PR** (`chore(main): release X.Y.Z`). It bumps
    `package.json`, `src/manifest.json` and `.release-please-manifest.json`, and writes
-   `CHANGELOG.md`. `feat` bumps the minor version, `fix` the patch version (while below 1.0).
+   `CHANGELOG.md`. `feat` bumps the minor version, `fix` the patch version, and a breaking
+   change (`feat!`) the major version. The first release is 1.0.0.
 2. Merge the release PR when you want to ship. That tags `vX.Y.Z` and creates the GitHub
    Release.
 3. The **Attach extension zip** job then runs the full verify on the tag and attaches
