@@ -73,12 +73,14 @@ Conventional Commit titles on `main`:
 
 > punchline fills in your HRworks working times from the hours you already tracked in Harvest.
 >
-> Pick a date range and punchline shows each day side by side: what Harvest says, the start and end time it will write (with the mandatory break added), and what HRworks has now. Days that already match fold away, so you only see what needs action. Write one day, or write a whole range at once after a Before and After check.
+> punchline works right inside the HRworks Arbeitszeiten page. Open a week and every day gets a badge: the times to add, old → new where HRworks differs, ⚠ to check, or ✓ when it already matches Harvest. Click a badge to write that day, Sync week for the open week, or Write all for the month. Every write shows a Before and After confirm where you can untick days.
+>
+> Prefer a list? The side panel shows any date range, folds away the days that match, and writes one day or all of them.
 >
 > How it works
 > • Reads your daily totals from the Harvest API with your own personal access token.
 > • Adds breaks by Swiss or German rules, or your own, to get a start and end time.
-> • Fills in the HRworks Arbeitszeiten page in your logged-in browser tab and checks every save.
+> • Shows a badge on each HRworks day, fills in the times you confirm, and checks every save.
 > • Days that differ are flagged, or overridden if you choose; the old HRworks times are logged first.
 >
 > Privacy
@@ -98,6 +100,9 @@ Conventional Commit titles on `main`:
 | Screenshots (1280×800)     | `assets/store/screenshot-1-preview.png`, `assets/store/screenshot-2-confirm.png` |
 | Small promo tile (440×280) | `assets/store/promo-tile-440x280.png`                                            |
 
+The screenshots show the side panel. Before the first store submission, add a screenshot of the badges
+inside HRworks, made from the synthetic test markup and never from a real HRworks page.
+
 **Additional fields:** Homepage URL `https://github.com/gruesomeparty/punchline`, support URL
 `https://github.com/gruesomeparty/punchline/issues`.
 
@@ -111,11 +116,11 @@ Conventional Commit titles on `main`:
 
 | Permission                                                           | Justification                                                                                                                                                                                                                                                                                                   |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storage`                                                            | Keeps the user's settings (Harvest token and account ID, start time, break rules, preview mode, theme) and a local log of the times punchline wrote, including the previous HRworks times, in chrome.storage.local. Nothing is synced or sent elsewhere.                                                        |
-| `sidePanel`                                                          | Shows the preview of days to write in Chrome's side panel, so the user can watch the HRworks page while punchline fills it in.                                                                                                                                                                                  |
+| `storage`                                                            | Keeps the user's settings (Harvest token and account ID, start time, break rules, theme) and a local log of the times punchline wrote, including the previous HRworks times, in chrome.storage.local. Nothing is synced or sent elsewhere.                                                                      |
+| `sidePanel`                                                          | Shows the optional list view of days to write in Chrome's side panel, next to the HRworks page, for date ranges beyond the open month.                                                                                                                                                                          |
 | Host permission `https://api.harvestapp.com/*`                       | Reads the user's own Harvest user record and time entries with the personal access token they entered, to add up hours per day.                                                                                                                                                                                 |
 | Host permissions `https://hrworks.de/*` and `https://*.hrworks.de/*` | The content script reads the HRworks working-time page to compare existing entries and fills in the times the user confirmed. HRworks serves each customer from its own subdomain (for example ssl1.hrworks.de), so the extension can't know the exact host in advance. It does nothing on other HRworks pages. |
-| Content script and web accessible resource                           | The content script is what reads and fills the HRworks page. `days/days.html` is web accessible on HRworks only, for the optional overlay that shows the preview inside the HRworks tab instead of the side panel.                                                                                              |
+| Content script                                                       | The content script is what reads the HRworks working-time page, adds the punchline bar and day badges, and fills in the times the user confirmed. It gets Harvest hours from the service worker; the Harvest token never reaches the page.                                                                      |
 
 **Remote code:** No, I am not using remote code. All JavaScript is bundled in the package.
 

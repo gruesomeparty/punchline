@@ -44,8 +44,14 @@ Your token stays in your browser and is only sent to Harvest. See the
 
 ## 5. Use it
 
-Open HRworks **Arbeitszeiten** and stay logged in. Click the punchline icon, pick your dates and
-check the preview before you write anything.
+Open HRworks **Arbeitszeiten** and stay logged in. If HRworks was already open, reload the tab
+once so punchline can attach to it.
+
+- A punchline bar appears under the month picker. Open a week and every day gets a badge: the
+  times to add, old → new to replace, ⚠ to check, or ✓ when it matches Harvest.
+- Click a badge to write that day, **Sync week** for the open week, or **Write all** for the
+  month. Each one asks for confirmation first, and you can untick days.
+- Prefer a list? Click the punchline icon and open the preview in Chrome's side panel or a tab.
 
 ## Updating
 
@@ -70,6 +76,7 @@ Removing it also deletes your saved token and settings.
 | punchline is gone after a restart                   | The folder was moved or deleted. Unzip again and load it again.                     |
 | Settings are empty after an update                  | You loaded a different folder. Remove that copy and load the original folder.       |
 | Test connection fails                               | Check the token and Account ID in Harvest. A token copied with spaces fails.        |
+| No punchline bar in HRworks                         | Reload the HRworks tab. Pages opened before the install don't get it.               |
 | Preview says "Open HRworks Arbeitszeiten in a tab." | Open HRworks, log in and go to Arbeitszeiten.                                       |
 | Your company blocks Developer mode                  | Ask IT to allow it, or wait for the Chrome Web Store version.                       |
 
@@ -152,7 +159,8 @@ What each kind of tool can do:
    read it off the screen, and never write it to a file. After they've entered it, you may
    click **Test connection** and report the result.
 
-4. **Finish** by telling the user it's installed, where the folder is (they must keep it), and
+4. **Finish** by reloading any open HRworks tab, so the punchline bar appears, and telling the
+   user it's installed, where the folder is (they must keep it), and
    that updating means running these steps again with the same folder.
 
 Don't change Chrome policies, preference files or command-line flags to force-install the
