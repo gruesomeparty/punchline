@@ -73,12 +73,9 @@ Requires [Node.js](https://nodejs.org/) 24 and
    ```
 2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and select
    the `dist/` folder.
-3. Open punchline's settings and enter:
-   - your Harvest personal access token
-   - your Harvest Account ID
-
-   Both are available at Harvest → Developers → Personal Access Tokens. They're stored locally
-   in your browser only.
+3. Open punchline's settings and click **Log in with Harvest**, or enter a personal access
+   token and Account ID from Harvest → Developers. Either is stored locally in your browser
+   only.
 4. Log in to HRworks as usual.
 
 ## Usage
