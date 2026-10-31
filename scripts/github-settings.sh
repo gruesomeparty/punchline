@@ -40,7 +40,8 @@ step() {
 api() { gh api -H "X-GitHub-Api-Version: 2022-11-28" "$@"; }
 
 visibility=$(gh repo view "${REPO}" --json visibility -q .visibility)
-echo "Configuring ${REPO} (${visibility,,})"
+# tr instead of ${visibility,,}: macOS ships bash 3.2.
+echo "Configuring ${REPO} ($(tr "[:upper:]" "[:lower:]" <<<"${visibility}"))"
 if [[ "${visibility}" != "PUBLIC" ]]; then
   echo "  Note: on a private repo, rulesets need GitHub Pro and secret scanning, code scanning,"
   echo "  dependency review and private vulnerability reporting need paid plans or public"
