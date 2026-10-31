@@ -4,6 +4,7 @@
   "description": "Syncs daily working hours from Harvest into HRworks.",
   "version": "0.0.0",
   "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxmmu1PXNyBxnAv7ZUOJjSQGvi4sdUGa0zRSBuEOrxSSyNG3VZlG7eCfHbzi3tQ2bG8mIp9GIHufk1In3YjBprTbxl3ZJ6Vfe98lgkms7B5CW/4MtLS/AZTxZ33fp9qD77sCE5oM+qK88ZKGD3wAwYfthCb+2Yca23DcpGDO/J/D7r6wgRo5upKuj/7kwZ7wI2Kbud/jGdSMMH0X3rF+SS8yE35TUYp0GkbnClzjoxaCdh9njVSTJWiPgWstw56QT9TUwYDh0RmBzE7YdJVPSqmjPFF8zSXF8t2ju67m5YFO1NWdY0Nb31mG21mSS0ZiX8qIVSwQ87LTKoBsbryf71QIDAQAB",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -31,7 +32,8 @@
   },
   "permissions": [
     "storage",
-    "sidePanel"
+    "sidePanel",
+    "identity"
   ],
   "host_permissions": [
     "https://api.harvestapp.com/*",

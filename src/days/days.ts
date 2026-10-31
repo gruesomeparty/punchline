@@ -307,7 +307,7 @@ form.addEventListener('submit', async (event) => {
   }
   const settings = await loadSettings();
   if (validateSettings(settings).length > 0) {
-    showStatus('Set up your Harvest token and account ID in the settings first.', 'error');
+    showStatus('Connect Harvest in the settings first.', 'error');
     return;
   }
 

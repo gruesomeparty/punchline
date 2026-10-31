@@ -3,16 +3,55 @@
 
 import { fetchCurrentUser, fetchTimeEntries, HarvestError } from '../harvest/client.ts';
 import { dailyTotals } from '../harvest/daily-totals.ts';
+import { logInWithHarvest, needsRelogin, type OAuthLogin } from '../harvest/oauth.ts';
 import type { HarvestRowsResponse } from '../hrworks/messages.ts';
 import { localToday, parseTime } from '../lib/time.ts';
-import { loadSettings, type Settings, validateSettings } from '../settings/settings.ts';
+import {
+  applyLogin,
+  loadSettings,
+  type Settings,
+  saveSettings,
+  validateSettings,
+} from '../settings/settings.ts';
 import { type DayRow, harvestDays } from './harvest-days.ts';
 
-export async function loadHarvestRows(
+type Relogin = {
+  now: number;
+  login: (interactive: boolean) => Promise<OAuthLogin>;
+  save: (settings: Settings) => Promise<void>;
+};
+
+/**
+ * Renews an OAuth token that is about to expire. Harvest's client-side flow has no refresh
+ * token, so this is a silent login, which works while the user is still signed in to Harvest.
+ */
+export async function freshCredentials(
   settings: Settings,
+  { now, login, save }: Relogin = { now: Date.now(), login: logInWithHarvest, save: saveSettings },
+): Promise<Settings> {
+  if (settings.harvestLogin !== 'oauth' || !needsRelogin(settings.harvestTokenExpiresAt, now)) {
+    return settings;
+  }
+  let renewed: Settings;
+  try {
+    renewed = applyLogin(settings, await login(false));
+  } catch {
+    // An expired token would only fail later with a vaguer message.
+    if (settings.harvestTokenExpiresAt <= now) {
+      throw new HarvestError('Your Harvest login expired. Log in again in the punchline settings.');
+    }
+    return settings;
+  }
+  await save(renewed);
+  return renewed;
+}
+
+export async function loadHarvestRows(
+  current: Settings,
   from: string,
   to: string,
 ): Promise<DayRow[]> {
+  const settings = await freshCredentials(current);
   const credentials = { token: settings.harvestToken, accountId: settings.harvestAccountId };
   const user = await fetchCurrentUser(credentials);
   const entries = await fetchTimeEntries(credentials, user.id, from, to);
@@ -27,7 +66,7 @@ export async function loadHarvestRows(
 export async function harvestRowsResponse(from: string, to: string): Promise<HarvestRowsResponse> {
   const settings = await loadSettings();
   if (validateSettings(settings).length > 0) {
-    return { ok: false, error: 'Set up your Harvest token in the punchline settings first.' };
+    return { ok: false, error: 'Connect Harvest in the punchline settings first.' };
   }
   try {
     const rows = await loadHarvestRows(settings, from, to);
