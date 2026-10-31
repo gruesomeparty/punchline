@@ -13,10 +13,21 @@
       <form id="settings" novalidate>
         <h2 class="group-title">Harvest</h2>
         <div class="card">
+          <div id="oauth-row" class="setting" hidden>
+            <div>
+              <span>Harvest login</span>
+              <p id="oauth-status" class="hint">
+                Log in once. punchline renews it while you stay signed in to Harvest.
+              </p>
+            </div>
+            <div class="control">
+              <button id="oauth-login" type="button">Log in with Harvest</button>
+            </div>
+          </div>
           <div class="setting">
             <div>
               <label for="token">Personal access token</label>
-              <p class="hint">Stored only in this browser.</p>
+              <p id="token-hint" class="hint">Stored only in this browser.</p>
             </div>
             <div class="control">
               <input id="token" type="password" autocomplete="off" spellcheck="false" />

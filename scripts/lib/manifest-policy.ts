@@ -13,6 +13,7 @@ export const ALLOWED_PERMISSIONS: readonly string[] = [
   'storage',
   'alarms',
   'sidePanel', // preview docked next to HRworks (approved by the maintainer, 2026-10-30)
+  'identity', // "Log in with Harvest" via launchWebAuthFlow (approved by the maintainer, 2026-10-31)
 ];
 
 const UNSAFE_CSP_TOKENS = ["'unsafe-eval'", "'unsafe-inline'", 'http:', 'https:', 'data:', 'blob:'];

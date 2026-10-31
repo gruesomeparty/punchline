@@ -60,7 +60,7 @@ npm run verify         # everything CI runs. Must pass before you hand work back
 ## Security rules (non-negotiable)
 
 - **Host access** is limited to `api.harvestapp.com`, `id.getharvest.com`, `hrworks.de` and
-  `*.hrworks.de`. **API permissions** are limited to `storage`, `alarms` and `sidePanel`. Both lists are in
+  `*.hrworks.de`. **API permissions** are limited to `storage`, `alarms`, `sidePanel` and `identity`. Both lists are in
   `scripts/lib/manifest-policy.ts`. Never widen them without explicit approval from the maintainer.
 - Never commit secrets, tokens, `.env` files, HAR files, HRworks screenshots or HTML snapshots.
   Test fixtures must be synthetic or anonymised.

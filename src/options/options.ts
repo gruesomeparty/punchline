@@ -1,8 +1,11 @@
 // Settings page. All checks live in settings.ts, this file only moves values in and out of the form.
 
 import { fetchCurrentUser, HarvestError } from '../harvest/client.ts';
+import { HARVEST_CLIENT_ID, logInWithHarvest, OAuthError } from '../harvest/oauth.ts';
 import { BREAK_PRESETS, type BreakRule } from '../rules/breaks.ts';
 import {
+  applyLogin,
+  type HarvestLogin,
   loadSettings,
   type Settings,
   saveSettings,
@@ -24,6 +27,12 @@ const weekend = byId<HTMLInputElement>('weekend');
 const debugLog = byId<HTMLInputElement>('debug-log');
 const status = byId<HTMLDivElement>('status');
 const testResult = byId<HTMLSpanElement>('test-result');
+const oauthRow = byId<HTMLDivElement>('oauth-row');
+const oauthStatus = byId<HTMLParagraphElement>('oauth-status');
+const tokenHint = byId<HTMLParagraphElement>('token-hint');
+
+// Where the token in the form came from. Typing a token by hand turns it back into 'token'.
+let login: { kind: HarvestLogin; expiresAt: number } = { kind: 'token', expiresAt: 0 };
 
 function showStatus(target: HTMLElement, text: string, kind: 'ok' | 'error' | '' = ''): void {
   target.textContent = text;
@@ -77,6 +86,8 @@ function readForm(): Settings {
   return {
     harvestToken: token.value.trim(),
     harvestAccountId: account.value.trim(),
+    harvestLogin: login.kind,
+    harvestTokenExpiresAt: login.expiresAt,
     breakPreset: preset.value as Settings['breakPreset'],
     breakRules: readRules(),
     startTime: start.value,
@@ -87,7 +98,25 @@ function readForm(): Settings {
   };
 }
 
+function showLogin(): void {
+  if (login.kind === 'oauth') {
+    const until = new Date(login.expiresAt).toLocaleDateString(undefined, { dateStyle: 'medium' });
+    showStatus(
+      oauthStatus,
+      `Logged in until ${until}. Renews on its own while you stay signed in to Harvest.`,
+      'ok',
+    );
+    tokenHint.textContent = 'Filled in by the Harvest login.';
+  } else {
+    tokenHint.textContent = HARVEST_CLIENT_ID
+      ? 'Instead of logging in. Stored only in this browser.'
+      : 'Stored only in this browser.';
+  }
+}
+
 function fillForm(settings: Settings): void {
+  login = { kind: settings.harvestLogin, expiresAt: settings.harvestTokenExpiresAt };
+  showLogin();
   token.value = settings.harvestToken;
   account.value = settings.harvestAccountId;
   start.value = settings.startTime;
@@ -99,6 +128,39 @@ function fillForm(settings: Settings): void {
   preset.value = settings.breakPreset;
   renderRules(settings.breakRules);
 }
+
+// Without a registered OAuth app there is nothing to log in to.
+oauthRow.hidden = !HARVEST_CLIENT_ID;
+
+byId('oauth-login').addEventListener('click', async () => {
+  showStatus(oauthStatus, 'Waiting for Harvest…');
+  let settings: Settings;
+  try {
+    settings = applyLogin(readForm(), await logInWithHarvest(true));
+  } catch (error) {
+    showStatus(
+      oauthStatus,
+      error instanceof OAuthError ? error.message : 'Unexpected error.',
+      'error',
+    );
+    return;
+  }
+  fillForm(settings);
+  // Saved right away, so the login isn't lost by forgetting Save. Other unsaved edits go along.
+  const errors = validateSettings(settings);
+  if (errors.length > 0) {
+    showStatus(status, errors.join(' '), 'error');
+    return;
+  }
+  await saveSettings(settings);
+  showStatus(status, 'Saved.', 'ok');
+});
+
+token.addEventListener('input', () => {
+  login = { kind: 'token', expiresAt: 0 };
+  showLogin();
+  showStatus(oauthStatus, 'Log in once. punchline renews it while you stay signed in to Harvest.');
+});
 
 reveal.addEventListener('click', () => {
   const show = token.type === 'password';
