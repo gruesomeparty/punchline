@@ -16,7 +16,7 @@ concurrency:
 jobs:
   release-please:
     name: Release PR
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -35,7 +35,7 @@ jobs:
     name: Attach extension zip
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write
