@@ -16,7 +16,7 @@ concurrency:
 jobs:
   gitleaks:
     name: Secret scan (gitleaks)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -41,7 +41,7 @@ jobs:
 
   trivy:
     name: Dependency & misconfig scan (Trivy)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
