@@ -29,7 +29,7 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "sidePanel"],
+  "permissions": ["storage", "sidePanel", "identity"],
   "host_permissions": [
     "https://api.harvestapp.com/*",
     "https://hrworks.de/*",

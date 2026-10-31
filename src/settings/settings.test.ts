@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BREAK_PRESETS } from '../rules/breaks.ts';
 import {
+  applyLogin,
   DEFAULT_SETTINGS,
   loadSettings,
   normalizeSettings,
@@ -19,6 +20,8 @@ describe('normalizeSettings', () => {
     const settings = normalizeSettings({
       harvestToken: ' abc ',
       harvestAccountId: ' 42 ',
+      harvestLogin: 'oauth',
+      harvestTokenExpiresAt: 1_000,
       breakPreset: 'de',
       breakRules: BREAK_PRESETS.de.rules,
       startTime: '08:30',
@@ -30,6 +33,8 @@ describe('normalizeSettings', () => {
     expect(settings).toEqual({
       harvestToken: 'abc',
       harvestAccountId: '42',
+      harvestLogin: 'oauth',
+      harvestTokenExpiresAt: 1_000,
       breakPreset: 'de',
       breakRules: BREAK_PRESETS.de.rules,
       startTime: '08:30',
@@ -68,6 +73,40 @@ describe('validateSettings', () => {
       breakRules: [{ afterMinutes: 1.5, breakMinutes: 0 }],
     });
     expect(errors).toHaveLength(2);
+  });
+});
+
+describe('validateSettings for a Harvest login', () => {
+  it('asks to log in again instead of asking for a token', () => {
+    const errors = validateSettings({
+      ...DEFAULT_SETTINGS,
+      harvestLogin: 'oauth',
+      harvestAccountId: '42',
+    });
+    expect(errors).toEqual(['Log in with Harvest again.']);
+  });
+});
+
+describe('applyLogin', () => {
+  const login = { token: 'new', accountIds: ['7', '42'], expiresAt: 5_000 };
+
+  it('stores the token and keeps an account the login covers', () => {
+    const settings = applyLogin({ ...DEFAULT_SETTINGS, harvestAccountId: '42' }, login);
+    expect(settings).toMatchObject({
+      harvestToken: 'new',
+      harvestAccountId: '42',
+      harvestLogin: 'oauth',
+      harvestTokenExpiresAt: 5_000,
+    });
+  });
+
+  it('switches to the first granted account otherwise', () => {
+    expect(applyLogin(DEFAULT_SETTINGS, login).harvestAccountId).toBe('7');
+  });
+
+  it('keeps the entered account when the login names none', () => {
+    const settings = { ...DEFAULT_SETTINGS, harvestAccountId: '42' };
+    expect(applyLogin(settings, { ...login, accountIds: [] }).harvestAccountId).toBe('42');
   });
 });
 

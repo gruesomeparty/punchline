@@ -1,6 +1,7 @@
 // User settings, stored locally in chrome.storage.local. The Harvest token never leaves the
 // extension except in requests to the Harvest API.
 
+import type { OAuthLogin } from '../harvest/oauth.ts';
 import { parseTime } from '../lib/time.ts';
 import type { ConflictMode } from '../plan/plan.ts';
 import {
@@ -11,8 +12,13 @@ import {
 } from '../rules/breaks.ts';
 
 export type Settings = {
+  /** Personal access token, or the token from "Log in with Harvest". */
   harvestToken: string;
   harvestAccountId: string;
+  /** Where the token came from. OAuth tokens expire and are renewed by logging in again. */
+  harvestLogin: HarvestLogin;
+  /** When an OAuth token expires, in ms since the epoch. 0 for personal access tokens. */
+  harvestTokenExpiresAt: number;
   /** Which preset the rules came from, or 'custom' once the user edits them. */
   breakPreset: BreakPresetId | 'custom';
   breakRules: BreakRule[];
@@ -30,9 +36,13 @@ export type Settings = {
 
 export type Theme = 'system' | 'light' | 'dark';
 
+export type HarvestLogin = 'token' | 'oauth';
+
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   harvestToken: '',
   harvestAccountId: '',
+  harvestLogin: 'token',
+  harvestTokenExpiresAt: 0,
   breakPreset: 'ch',
   breakRules: BREAK_PRESETS.ch.rules,
   startTime: '08:00',
@@ -66,6 +76,11 @@ export function normalizeSettings(raw: unknown): Settings {
   return {
     harvestToken: text('harvestToken', '').trim(),
     harvestAccountId: text('harvestAccountId', '').trim(),
+    harvestLogin: stored.harvestLogin === 'oauth' ? 'oauth' : 'token',
+    harvestTokenExpiresAt:
+      typeof stored.harvestTokenExpiresAt === 'number' && stored.harvestTokenExpiresAt > 0
+        ? stored.harvestTokenExpiresAt
+        : 0,
     breakPreset,
     breakRules:
       rules && validateRules(rules).length === 0
@@ -84,13 +99,35 @@ export function normalizeSettings(raw: unknown): Settings {
 /** Problems that stop the settings from being saved. */
 export function validateSettings(settings: Settings): string[] {
   const errors: string[] = [];
-  if (!settings.harvestToken) errors.push('Enter your Harvest personal access token.');
+  if (!settings.harvestToken) {
+    errors.push(
+      settings.harvestLogin === 'oauth'
+        ? 'Log in with Harvest again.'
+        : 'Enter your Harvest personal access token.',
+    );
+  }
   if (!/^\d+$/.test(settings.harvestAccountId)) {
     errors.push('The Harvest account ID is a number.');
   }
   if (parseTime(settings.startTime) === null) errors.push('Enter the start time as HH:MM.');
   errors.push(...validateRules(settings.breakRules));
   return errors;
+}
+
+/**
+ * Takes over a Harvest login. Keeps the chosen account when the login covers it, so someone with
+ * several Harvest accounts doesn't get switched on every renewal.
+ */
+export function applyLogin(settings: Settings, login: OAuthLogin): Settings {
+  const keep =
+    login.accountIds.includes(settings.harvestAccountId) || login.accountIds.length === 0;
+  return {
+    ...settings,
+    harvestToken: login.token,
+    harvestAccountId: keep ? settings.harvestAccountId : (login.accountIds[0] as string),
+    harvestLogin: 'oauth',
+    harvestTokenExpiresAt: login.expiresAt,
+  };
 }
 
 const KEY = 'settings';
