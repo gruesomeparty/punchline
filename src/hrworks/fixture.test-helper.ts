@@ -27,6 +27,8 @@ export type FakeDay = {
   extra?: { start: string; end: string }[];
   /** Show the extra entries above the saved one, as HRworks does for an earlier start. */
   extraFirst?: boolean;
+  /** Leave the day's row out of the week, as if HRworks didn't list it. */
+  hidden?: boolean;
 };
 
 export type FakeWeek = { title: string; open: boolean; days: FakeDay[] };
@@ -108,7 +110,8 @@ export function dayHtml(day: FakeDay): string {
 
 export function weekHtml(week: FakeWeek, index: number): string {
   // Collapsed weeks load their days only when opened, like HRworks does.
-  const days = week.open ? [...week.days].reverse().map(dayHtml).join('') : '';
+  const listed = week.days.filter((day) => !day.hidden);
+  const days = week.open ? [...listed].reverse().map(dayHtml).join('') : '';
   // Like HRworks, only the first week item has a data-guide-id.
   const guide = index === 0 ? ' data-guide-id="aaa6ecc7-4778-4ef1-814b-6aae2c52cde1"' : '';
   return `<div class="m-accordion__item"${guide}>
@@ -212,6 +215,8 @@ export class FakeHrworks {
   clicks = 0;
   /** How many week clicks to ignore, like HRworks sometimes does. */
   ignoreWeekClicks = 0;
+  /** How many of a week's last days show up only a moment after the week opened. */
+  lateDays = 0;
   /** How many "+" clicks to ignore, like HRworks does while it re-renders. */
   ignoreAddClicks = 0;
   /** How many "Ja" clicks to ignore, like HRworks does while the dialog fades in. */
@@ -319,6 +324,14 @@ export class FakeHrworks {
       const title = target?.querySelector('.m-accordion__item-title')?.textContent?.trim();
       this.later(() => {
         for (const week of this.weeks()) week.open = week.title === title;
+        const opened = this.weeks().find((week) => week.title === title);
+        if (!opened || this.lateDays === 0) return;
+        const late = opened.days.slice(-this.lateDays);
+        for (const day of late) day.hidden = true;
+        setTimeout(() => {
+          for (const day of late) delete day.hidden;
+          this.render();
+        }, 100);
       });
     } else if (guide === GUIDE.infoButton) {
       const day = this.dayOf(target);

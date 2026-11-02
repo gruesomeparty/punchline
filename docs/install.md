@@ -85,6 +85,7 @@ Removing it also deletes your saved token and settings.
 | No punchline bar in HRworks                         | Reload the HRworks tab. Pages opened before the install don't get it.                         |
 | Preview says "Open HRworks Arbeitszeiten in a tab." | Open HRworks, log in and go to Arbeitszeiten.                                                 |
 | Your company blocks Developer mode                  | Ask IT to allow it, or wait for the Chrome Web Store version.                                 |
+| An error that ends in a code such as `(PL-302)`     | See [Troubleshooting errors](troubleshooting.md): what it means and what to send.             |
 
 ## For AI assistants helping someone install
 

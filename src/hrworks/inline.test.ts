@@ -43,9 +43,10 @@ beforeEach(() => {
 });
 
 /** Mounts punchline in the fake HRworks. Most tests compare by hand to stay predictable. */
-function mount(autoCompare: boolean): Inline {
+function mount(autoCompare: boolean, report?: () => string): Inline {
   let busy = false;
   return mountInline(document, {
+    ...(report ? { report } : {}),
     timeoutMs: 1000,
     pauseMs: 0,
     shadowMode: 'open',
@@ -144,6 +145,26 @@ describe('mountInline', () => {
     response = { ok: false, error: 'Set up your Harvest token in the punchline settings first.' };
     await inline.check();
     expect(bar()?.querySelector('.status')?.textContent).toMatch(/Set up your Harvest token/);
+  });
+
+  it('offers the debug log next to an error in HRworks, with the error code', async () => {
+    inline.unmount();
+    inline = mount(false, () => 'the steps');
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    for (const day of hrworks.weeks()[0]?.days ?? []) day.hidden = day.date === '2026-07-04';
+    hrworks.render();
+    await inline.check();
+    expect(bar()?.querySelector('.status')?.textContent).toBe(
+      "HRworks didn't show 2026-07-04. KW 27 (01.07. - 05.07.) lists 4 of 5 days. (PL-302)",
+    );
+    const copy = [...(bar()?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Copy details',
+    ) as HTMLButtonElement;
+    expect(copy.hidden).toBe(false);
+    copy.click();
+    await vi.waitFor(() => expect(copy.textContent).toBe('Copied'));
+    expect(writeText).toHaveBeenCalledWith('the steps');
   });
 
   it('forgets the comparison when HRworks shows another month', async () => {
