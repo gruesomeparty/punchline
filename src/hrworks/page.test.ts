@@ -104,6 +104,39 @@ describe('readHrworksDays', () => {
     );
   });
 
+  it('says how many days the week listed when one is missing, with a code', async () => {
+    for (const day of hrworks.weeks()[0]?.days ?? []) {
+      if (day.date >= '2026-07-04') day.hidden = true;
+    }
+    hrworks.render();
+    const log: string[] = [];
+    await expect(
+      readHrworksDays(document, '2026-07-01', '2026-07-05', { ...fast, log: (l) => log.push(l) }),
+    ).rejects.toThrow(
+      "HRworks didn't show 2026-07-04. KW 27 (01.07. - 05.07.) lists 3 of 5 days. (PL-302)",
+    );
+    expect(log[0]).toMatch(/^page lang=.* language=Deutsch month=2026-07 weeks=2 open=1/);
+    expect(log).toContain(
+      'week "KW 27 (01.07. - 05.07.)" shows 3 of 5 days: 03.07. 1 entry, 02.07. absence, ' +
+        '01.07. 1 entry',
+    );
+  });
+
+  it('waits for the last days of a week that HRworks shows a moment later', async () => {
+    const week = hrworks.weeks()[0];
+    if (week) week.open = false;
+    hrworks.render();
+    hrworks.lateDays = 2;
+    const days = await readHrworksDays(document, '2026-07-01', '2026-07-05', fast);
+    expect(days.map((day) => [day.date, day.workday])).toEqual([
+      ['2026-07-01', true],
+      ['2026-07-02', true],
+      ['2026-07-03', true],
+      ['2026-07-04', false],
+      ['2026-07-05', false],
+    ]);
+  });
+
   it('stops when HRworks is not showing Arbeitszeiten', async () => {
     document.body.innerHTML = '<p>Anmelden</p>';
     await expect(readHrworksDays(document, '2026-07-01', '2026-07-01', fast)).rejects.toThrow(

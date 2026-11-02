@@ -1,6 +1,7 @@
 // Content script in HRworks tabs. Shows punchline's bar and badges on the Arbeitszeiten page, and
 // reads or writes days when the punchline pages ask for it, one request at a time.
 
+import { errorDetail, errorMessage } from './errors.ts';
 import { mountInline } from './inline.ts';
 import {
   type DebugLogResponse,
@@ -12,8 +13,8 @@ import {
   type ReadDaysResponse,
   type WriteDaysResponse,
 } from './messages.ts';
-import { HrworksReadError, readHrworksDays } from './page.ts';
-import { createTrace, type Trace } from './trace.ts';
+import { readHrworksDays } from './page.ts';
+import { aboutLine, createTrace, type Trace } from './trace.ts';
 import { writeDays } from './write.ts';
 
 let busy = false;
@@ -21,6 +22,11 @@ let busy = false;
 let trace: Trace = createTrace();
 
 const BUSY = 'punchline is already working in this HRworks tab.';
+
+/** The debug log as people copy it, so a pasted log says which version it came from. */
+function report(): string[] {
+  return [aboutLine(chrome.runtime.getManifest().version, navigator.userAgent), ...trace.lines()];
+}
 
 /** Runs `task` unless a read or write is already going on in this tab. */
 async function exclusive(task: () => Promise<void>): Promise<boolean> {
@@ -39,6 +45,7 @@ async function exclusive(task: () => Promise<void>): Promise<boolean> {
 // Arbeitszeiten page to show up.
 mountInline(document, {
   log: (line) => trace.log(line),
+  report: () => report().join('\n'),
   exclusive,
   loadRows: async (from, to) => {
     const request: HarvestRowsRequest = { type: 'punchline/harvest-rows', from, to };
@@ -50,7 +57,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
 
   if (isDebugLogRequest(message)) {
-    const response: DebugLogResponse = { lines: trace.lines() };
+    const response: DebugLogResponse = { lines: report() };
     sendResponse(response);
     return false;
   }
@@ -66,13 +73,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     trace.log(`read ${message.from} to ${message.to}`);
     readHrworksDays(document, message.from, message.to, { log: trace.log })
       .then((days) => respond({ ok: true, days }))
-      .catch((error: unknown) =>
-        respond({
-          ok: false,
-          error:
-            error instanceof HrworksReadError ? error.message : 'Unexpected error reading HRworks.',
-        }),
-      )
+      .catch((error: unknown) => {
+        trace.log(`error: ${errorDetail(error)}`);
+        respond({ ok: false, error: errorMessage(error, 'Unexpected error reading HRworks.') });
+      })
       .finally(() => {
         busy = false;
       });

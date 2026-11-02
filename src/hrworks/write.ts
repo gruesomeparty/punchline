@@ -5,11 +5,12 @@
 
 import { formatDuration } from '../lib/time.ts';
 import type { HrworksDay, HrworksEntry } from '../plan/plan.ts';
+import { errorDetail, errorMessage, HrworksReadError } from './errors.ts';
 import { GERMAN } from './locales.ts';
 import {
   checkPage,
+  describePage,
   findRow,
-  HrworksReadError,
   hrworksSession,
   isLoading,
   localeOf,
@@ -138,7 +139,7 @@ async function waitForOneEntry(
     inputs = all.length === 1 ? all[0] : undefined;
     return !!inputs;
   }, what);
-  if (!inputs) throw new HrworksReadError(`No entry to edit on ${date}.`);
+  if (!inputs) throw new HrworksReadError('typedTimesLost', `No entry to edit on ${date}.`);
   return inputs;
 }
 
@@ -152,13 +153,22 @@ async function openNewEntry(
 ): Promise<EntryInputs> {
   const { date } = day;
   if (header.entries.length > 0) {
-    throw new HrworksReadError(`HRworks already has an entry on ${date}. Nothing written.`);
+    throw new HrworksReadError(
+      'notWritable',
+      `HRworks already has an entry on ${date}. Nothing written.`,
+    );
   }
   if ((!header.workday && !day.dayOff) || header.absence) {
-    throw new HrworksReadError(`${date} is not a plain workday in HRworks. Nothing written.`);
+    throw new HrworksReadError(
+      'notWritable',
+      `${date} is not a plain workday in HRworks. Nothing written.`,
+    );
   }
   if (entryInputs(row).length > 0) {
-    throw new HrworksReadError(`${date} already has an unsaved entry open in HRworks.`);
+    throw new HrworksReadError(
+      'notWritable',
+      `${date} already has an unsaved entry open in HRworks.`,
+    );
   }
   // HRworks ignores a click while it is still re-rendering from the previous event, for
   // example the day typed in just before. So "+" is clicked again while the day still has no
@@ -168,7 +178,7 @@ async function openNewEntry(
     const current = findRow(doc, date);
     const add = current ? addButton(current) : null;
     if (!add || isDisabled(add)) {
-      throw new HrworksReadError(`HRworks doesn't allow adding a time on ${date}.`);
+      throw new HrworksReadError('notWritable', `HRworks doesn't allow adding a time on ${date}.`);
     }
     await session.waitFor(() => !isLoading(doc), session.timeoutMs / attempts);
     session.log(`click + on ${date} (attempt ${attempt})`);
@@ -181,7 +191,7 @@ async function openNewEntry(
     if (await session.waitFor(() => count() > 0, session.timeoutMs / attempts)) break;
     session.log(`no new entry on ${date} yet (loading=${isLoading(doc)})`);
     if (attempt === attempts) {
-      throw new HrworksReadError(`HRworks didn't open a new entry on ${date} in time.`);
+      throw new HrworksReadError('timeout', `HRworks didn't open a new entry on ${date} in time.`);
     }
   }
   return waitForOneEntry(doc, session, date, `open a new entry on ${date}`);
@@ -201,17 +211,22 @@ async function openSavedEntry(
   const { date, previous = [] } = day;
   if (JSON.stringify(header.entries) !== JSON.stringify(previous)) {
     throw new HrworksReadError(
+      'changedSincePreview',
       `HRworks changed on ${date} since the preview. Nothing written. Load the preview again.`,
     );
   }
   const [entry] = previous;
   if (previous.length !== 1 || !entry) {
     throw new HrworksReadError(
+      'extraEntries',
       `punchline only overrides a day with one entry. Change ${date} in HRworks.`,
     );
   }
   if ((!header.workday && !day.dayOff) || header.absence) {
-    throw new HrworksReadError(`${date} is not a plain workday in HRworks. Nothing written.`);
+    throw new HrworksReadError(
+      'notWritable',
+      `${date} is not a plain workday in HRworks. Nothing written.`,
+    );
   }
   // Reading the credited hours opens the details, which hold the entries' inputs. An entry that
   // was just added with "+" already shows them.
@@ -232,6 +247,7 @@ async function openSavedEntry(
     const shown = now ? readDayHeader(doc, now) : null;
     if (JSON.stringify(shown?.entries) !== JSON.stringify(previous)) {
       throw new HrworksReadError(
+        'changedSincePreview',
         `HRworks changed the remaining entry on ${date} while removing the others. ` +
           'Nothing written. Reload HRworks.',
       );
@@ -239,6 +255,7 @@ async function openSavedEntry(
   }
   if (inputs.start.value !== entry.start || inputs.end.value !== entry.end) {
     throw new HrworksReadError(
+      'changedSincePreview',
       `HRworks shows ${inputs.start.value}–${inputs.end.value} on ${date} instead of ` +
         `${entry.start}–${entry.end}. Nothing written.`,
     );
@@ -266,11 +283,13 @@ async function removeExtraOpenEntries(
   if (all.length <= 1) return [];
   if (all.some((inputs) => inputs.end.value.trim() !== '')) {
     throw new HrworksReadError(
+      'extraEntries',
       `${date} has ${all.length} entries in HRworks and not all are open. Change it by hand.`,
     );
   }
   if (!all.some((inputs) => inputs.start.value === keep)) {
     throw new HrworksReadError(
+      'extraEntries',
       `None of the ${all.length} open entries on ${date} starts at ${keep} like the preview. ` +
         'Change it by hand.',
     );
@@ -290,7 +309,10 @@ async function removeExtraOpenEntries(
     const toggle = menu?.querySelector<HTMLElement>('.m-dropdown__toggle');
     const remove = menu && byGuide(menu, WRITE_GUIDE.remove)[0]?.querySelector<HTMLElement>('a');
     if (!toggle || !remove) {
-      throw new HrworksReadError(`HRworks shows no way to remove an entry on ${date}.`);
+      throw new HrworksReadError(
+        'unexpectedLayout',
+        `HRworks shows no way to remove an entry on ${date}.`,
+      );
     }
     session.log(`remove entry ${start}– (#${index + 1} of ${before}) on ${date}: open menu`);
     toggle.click();
@@ -308,6 +330,7 @@ async function removeExtraOpenEntries(
     session.log(`dialog: "${asked.trim()}"`);
     if (!asked.includes(`${d}.${m}.${y?.slice(2)} ${start}`)) {
       throw new HrworksReadError(
+        'extraEntries',
         `HRworks asked to remove a different entry than the one on ${date} ${start}. ` +
           'Click "Nein" and reload HRworks.',
       );
@@ -338,7 +361,8 @@ function filledInputs(doc: Document, date: string): EntryInputs | null {
 async function fillDay(doc: Document, session: Session, day: WriteDay): Promise<HrworksEntry[]> {
   const row = await session.openDay(day.date);
   const header = readDayHeader(doc, row);
-  if (!header) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
+  if (!header)
+    throw new HrworksReadError('unexpectedText', `Unexpected day in HRworks for ${day.date}.`);
   const { inputs, removed } = day.previous
     ? await openSavedEntry(doc, session, row, header, day)
     : { inputs: await openNewEntry(doc, session, row, header, day), removed: [] };
@@ -348,6 +372,7 @@ async function fillDay(doc: Document, session: Session, day: WriteDay): Promise<
   await session.pause();
   if (inputs.start.value !== day.start || inputs.end.value !== day.end) {
     throw new HrworksReadError(
+      'typedTimesLost',
       `HRworks changed the times on ${day.date} to ${inputs.start.value}–${inputs.end.value}.`,
     );
   }
@@ -370,17 +395,19 @@ async function checkDay(doc: Document, session: Session, day: WriteDay): Promise
   const credited = await session.openCredited(day.date);
   if (Math.abs(credited - day.expectedMinutes) > 1) {
     throw new HrworksReadError(
+      'creditMismatch',
       `Saved, but HRworks credits ${formatDuration(credited)} instead of ` +
         `${formatDuration(day.expectedMinutes)}. Check the break rules in the settings.`,
     );
   }
   const after = readDayHeader(doc, findRow(doc, day.date) ?? doc.body);
-  if (!after) throw new HrworksReadError(`Unexpected day in HRworks for ${day.date}.`);
+  if (!after)
+    throw new HrworksReadError('unexpectedText', `Unexpected day in HRworks for ${day.date}.`);
   return { ...after, creditedMinutes: credited };
 }
 
-function message(error: unknown): string {
-  return error instanceof HrworksReadError ? error.message : 'Unexpected error writing to HRworks.';
+function message(error: unknown, more = ''): string {
+  return errorMessage(error, 'Unexpected error writing to HRworks.', more);
 }
 
 /**
@@ -401,6 +428,7 @@ export async function writeDays(
     days.map(() => ({ ok: false, error, saved }));
   if (days.length === 0) return [];
   session.log(`write ${days.map((day) => `${day.date} ${day.start}–${day.end}`).join(', ')}`);
+  session.log(describePage(doc));
 
   let current = days[0]?.date ?? '';
   let filled = 0;
@@ -416,17 +444,20 @@ export async function writeDays(
       current = day.date;
       const inputs = filledInputs(doc, day.date);
       if (inputs?.start.value !== day.start || inputs.end.value !== day.end) {
-        throw new HrworksReadError(`HRworks lost the times typed on ${day.date}.`);
+        throw new HrworksReadError(
+          'typedTimesLost',
+          `HRworks lost the times typed on ${day.date}.`,
+        );
       }
     }
   } catch (error) {
-    session.log(`stopped at ${current}: ${message(error)}; ${describeEntries(doc, current)}`);
+    session.log(`stopped at ${current}: ${errorDetail(error)}; ${describeEntries(doc, current)}`);
     const hint = filled > 0 ? ' Reload HRworks to drop the times typed so far.' : '';
     return days.map((day) => ({
       ok: false,
       error:
         day.date === current
-          ? `${message(error)} Nothing saved.${hint}`
+          ? message(error, ` Nothing saved.${hint}`)
           : `Not saved, because ${current} stopped the week.`,
       saved: false,
       ...(day.date === current ? {} : { blockedBy: current }),
@@ -435,7 +466,7 @@ export async function writeDays(
 
   try {
     const save = byGuide(doc, WRITE_GUIDE.save)[0] as HTMLElement | undefined;
-    if (!save) throw new HrworksReadError('HRworks shows no Speichern button.');
+    if (!save) throw new HrworksReadError('unexpectedLayout', 'HRworks shows no Speichern button.');
     // Ignore an error text that was already on the page before this save.
     const errorBefore = knownError(doc);
     session.log('click Speichern');
@@ -455,7 +486,7 @@ export async function writeDays(
     }, 'confirm the save');
     if (error) return failAll(error, true);
   } catch (error) {
-    session.log(`save failed: ${message(error)}`);
+    session.log(`save failed: ${errorDetail(error)}`);
     return failAll(message(error), true);
   }
 
@@ -466,7 +497,7 @@ export async function writeDays(
       const checked = await checkDay(doc, session, day);
       results.push({ ok: true, day: checked, ...(extra.length > 0 ? { removed: extra } : {}) });
     } catch (error) {
-      session.log(`check of ${day.date} failed: ${message(error)}`);
+      session.log(`check of ${day.date} failed: ${errorDetail(error)}`);
       results.push({ ok: false, error: message(error), saved: true });
     }
   }
@@ -480,5 +511,5 @@ export async function writeDay(
   options: ReadOptions = {},
 ): Promise<WriteResult> {
   const [result] = await writeDays(doc, [day], options);
-  return result ?? { ok: false, error: 'Unexpected error writing to HRworks.', saved: false };
+  return result ?? { ok: false, error: message(null), saved: false };
 }

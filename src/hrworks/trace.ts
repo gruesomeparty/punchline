@@ -19,3 +19,9 @@ export function createTrace(max = 2000, now: () => number = Date.now): Trace {
     lines: () => [...lines],
   };
 }
+
+/** Who ran the steps: the punchline and Chrome versions, as the first line of a copied log. */
+export function aboutLine(version: string, userAgent: string): string {
+  const chrome = /Chrome\/([\d.]+)/.exec(userAgent)?.[1] ?? 'unknown';
+  return `punchline ${version}, Chrome ${chrome}`;
+}

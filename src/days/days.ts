@@ -195,9 +195,12 @@ async function sendToHrworks<T>(
   }
 }
 
-/** Shows the HRworks steps of the latest run, if the debug log is on in the settings. */
-async function showDebugLog(): Promise<void> {
-  if (!(await loadSettings()).debugLog) return;
+/**
+ * Shows the HRworks steps of the latest run, if the debug log is on in the settings. After an
+ * error it always shows, so coworkers can copy it into a bug report without changing settings.
+ */
+async function showDebugLog(failed = false): Promise<void> {
+  if (!failed && !(await loadSettings()).debugLog) return;
   const response = await sendToHrworks<DebugLogResponse>({ type: 'punchline/debug-log' });
   debugText.textContent =
     typeof response === 'string' ? response : response.lines.join('\n') || '(empty)';
@@ -274,7 +277,7 @@ async function writeWithConfirm(candidates: readonly WritableDay[]): Promise<voi
   writing = false;
   setWriteButtons(false);
   updateWriteAll();
-  await showDebugLog();
+  await showDebugLog(stop !== '');
   if (chosen.length > 1) {
     showStatus(
       stop
@@ -327,7 +330,7 @@ form.addEventListener('submit', async (event) => {
     showStatus('Reading HRworks…');
     previewReadAt = new Date().toISOString();
     const hrworks = await readHrworks(from.value, to.value);
-    await showDebugLog();
+    await showDebugLog(typeof hrworks === 'string');
     if (typeof hrworks === 'string') {
       showStatus(`Harvest loaded. ${hrworks}`, 'error');
       return;

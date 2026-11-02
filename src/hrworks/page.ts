@@ -5,6 +5,7 @@
 
 import { datesBetween, monthsBetween } from '../lib/time.ts';
 import type { HrworksDay } from '../plan/plan.ts';
+import { HrworksReadError } from './errors.ts';
 import { GERMAN, type HrworksTexts, LOCALES, localeForMonths } from './locales.ts';
 import { type DayHeaderTexts, findDuration, parseDayHeader, parseWeekTitle } from './parse.ts';
 
@@ -19,10 +20,7 @@ export const GUIDE = {
   details: '1d69ad6e-2e7b-48c3-a25f-877f64d8458e',
 } as const;
 
-/** Something on the page wasn't what punchline expects. The message is shown to the user. */
-export class HrworksReadError extends Error {
-  override name = 'HrworksReadError';
-}
+export { HrworksReadError } from './errors.ts';
 
 export type ReadOptions = {
   /** How long to wait for HRworks to finish loading after a click. */
@@ -82,7 +80,11 @@ export function readWeeks(doc: Document): Week[] {
   return byGuide(doc, GUIDE.weekHead).map((element) => {
     const head = element as HTMLElement;
     const item = head.closest('.m-accordion__item');
-    if (!item) throw new HrworksReadError('A week on the HRworks page has an unexpected layout.');
+    if (!item)
+      throw new HrworksReadError(
+        'unexpectedLayout',
+        'A week on the HRworks page has an unexpected layout.',
+      );
     const body = item.querySelector('.m-accordion__item-body');
     return {
       item,
@@ -131,24 +133,88 @@ export function findRow(doc: Document, date: string): Element | null {
   return dayRows(doc).find((row) => readDayHeader(doc, row)?.date === date) ?? null;
 }
 
+/** "2026-10-10" → "10.10.", as HRworks writes dates in week titles. */
+function shortDate(date: string): string {
+  return `${date.slice(8, 10)}.${date.slice(5, 7)}.`;
+}
+
+/** The dates a week title covers, in the year the page shows. Empty if the title is unknown. */
+function weekDates(doc: Document, title: string): string[] {
+  const year = readSelectedMonth(doc)?.year;
+  const range = year ? parseWeekTitle(title, year) : null;
+  return range ? datesBetween(range.from, range.to) : [];
+}
+
+/**
+ * The days of some rows for the debug log, such as "05.10., 10.10. off". Absences are only
+ * marked, never named, since they can be sick days.
+ */
+export function describeRows(doc: Document, rows: readonly Element[]): string {
+  return rows
+    .map((row) => {
+      const header = readDayHeader(doc, row);
+      if (!header) return `? "${dayHeaderTexts(row).day}"`;
+      const flags = [
+        header.workday ? '' : 'off',
+        header.absence ? 'absence' : '',
+        header.entries.length > 0 ? `${header.entries.length} entry` : '',
+      ].filter(Boolean);
+      return [shortDate(header.date), ...flags].join(' ');
+    })
+    .join(', ');
+}
+
+/** One line about the page as punchline sees it, for the top of the debug log. */
+export function describePage(doc: Document): string {
+  const shown = readSelectedMonth(doc);
+  const weeks = selectIn(doc, GUIDE.monthGroup) ? readWeeksSafely(doc) : [];
+  return [
+    `page lang=${doc.documentElement.lang || '?'}`,
+    `language=${localeOf(doc)?.language ?? '?'}`,
+    `month=${shown ? `${shown.year}-${String(shown.month).padStart(2, '0')}` : '?'}`,
+    `weeks=${weeks.length}`,
+    `open=${weeks.filter((week) => week.open).length}`,
+    `rows=${dayRows(doc).length}`,
+    `loading=${isLoading(doc)}`,
+  ].join(' ');
+}
+
+function readWeeksSafely(doc: Document): Week[] {
+  try {
+    return readWeeks(doc);
+  } catch {
+    return [];
+  }
+}
+
 /** Stops on anything that means the page isn't in a state punchline understands. */
 export function checkPage(doc: Document): void {
   const text = doc.body?.textContent ?? '';
   // The dialog can cover any page, so look for it in every language.
   if (LOCALES.some((locale) => text.includes(locale.sessionExpiring))) {
     throw new HrworksReadError(
+      'sessionExpiring',
       'HRworks says your session is about to expire. Click "Ok" in HRworks and try again.',
     );
   }
   if (!selectIn(doc, GUIDE.monthGroup)) {
-    throw new HrworksReadError('Open Zeitwirtschaft → Arbeitszeiten in HRworks and try again.');
+    throw new HrworksReadError(
+      'notWorkingTimes',
+      'Open Zeitwirtschaft → Arbeitszeiten in HRworks and try again.',
+    );
   }
   if (!localeOf(doc)) {
     const supported = LOCALES.map((locale) => locale.language).join(', ');
-    throw new HrworksReadError(`punchline only knows HRworks in ${supported} so far.`);
+    throw new HrworksReadError(
+      'unknownLanguage',
+      `punchline only knows HRworks in ${supported} so far.`,
+    );
   }
   if (!readSelectedMonth(doc)) {
-    throw new HrworksReadError('HRworks shows a month punchline does not recognise.');
+    throw new HrworksReadError(
+      'unknownMonth',
+      'HRworks shows a month punchline does not recognise.',
+    );
   }
 }
 
@@ -178,13 +244,14 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     log(
       `${ok ? 'done' : 'TIMEOUT'}: ${what} (${Date.now() - started} ms, loading=${isLoading(doc)})`,
     );
-    if (!ok) throw new HrworksReadError(`HRworks didn't ${what} in time.`);
+    if (!ok) throw new HrworksReadError('timeout', `HRworks didn't ${what} in time.`);
   }
 
   async function choose(group: string, label: string): Promise<void> {
     const select = selectIn(doc, group);
     const option = [...(select?.options ?? [])].find((o) => textOf(o) === label);
-    if (!select || !option) throw new HrworksReadError(`HRworks has no "${label}" to select.`);
+    if (!select || !option)
+      throw new HrworksReadError('unexpectedLayout', `HRworks has no "${label}" to select.`);
     if (select.value === option.value) return;
     log(`select "${label}"`);
     select.value = option.value;
@@ -212,7 +279,8 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
   async function openWeek(title: string): Promise<Element[]> {
     // Look the week up again each time: HRworks may re-render the list after a click.
     const findWeek = () => readWeeks(doc).find((week) => week.title === title);
-    if (!findWeek()) throw new HrworksReadError(`The week "${title}" disappeared from HRworks.`);
+    if (!findWeek())
+      throw new HrworksReadError('weekMissing', `The week "${title}" disappeared from HRworks.`);
     const loaded = () => {
       const current = findWeek();
       return !!current?.open && dayRows(current.item).length > 0 && !isLoading(current.item);
@@ -229,9 +297,24 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
       }
       if (await waitFor(loaded, timeoutMs / attempts)) break;
       log(`week "${title}" not loaded yet (attempt ${attempt}, loading=${isLoading(doc)})`);
-      if (attempt === attempts) throw new HrworksReadError(`HRworks didn't open ${title} in time.`);
+      if (attempt === attempts)
+        throw new HrworksReadError('weekNotOpened', `HRworks didn't open ${title} in time.`);
     }
-    return dayRows(findWeek()?.item ?? doc);
+    const rows = () => dayRows(findWeek()?.item ?? doc);
+    const expected = weekDates(doc, title).length;
+    if (rows().length < expected) {
+      // HRworks can show the first rows of a week before the rest, and a half-loaded week would
+      // read as missing days. So give it a moment to finish, but don't wait the full timeout:
+      // some accounts may simply list fewer days.
+      const settled = await waitFor(
+        () => loaded() && rows().length >= expected,
+        Math.min(3000, timeoutMs / 5),
+      );
+      if (!settled) log(`week "${title}" stays at ${rows().length} of ${expected} days`);
+    }
+    const shown = rows();
+    log(`week "${title}" shows ${shown.length} of ${expected} days: ${describeRows(doc, shown)}`);
+    return shown;
   }
 
   /** Shows the month and opens the week of `date`, and returns the day's row. */
@@ -242,20 +325,30 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
       const range = parseWeekTitle(w.title, year);
       return !!range && range.from <= date && date <= range.to;
     });
-    if (!week) throw new HrworksReadError(`HRworks shows no week with ${date}.`);
-    await openWeek(week.title);
+    if (!week) throw new HrworksReadError('weekMissing', `HRworks shows no week with ${date}.`);
+    const rows = await openWeek(week.title);
     const row = findRow(doc, date);
-    if (!row) throw new HrworksReadError(`HRworks didn't show ${date}.`);
+    if (!row) {
+      const expected = weekDates(doc, week.title).length;
+      throw new HrworksReadError(
+        'dayMissing',
+        `HRworks didn't show ${date}. ${week.title} lists ${rows.length} of ${expected} days.`,
+      );
+    }
     return row;
   }
 
   async function openCredited(date: string): Promise<number> {
     const row = findRow(doc, date);
-    if (!row) throw new HrworksReadError(`HRworks no longer shows ${date}.`);
+    if (!row) throw new HrworksReadError('dayGone', `HRworks no longer shows ${date}.`);
     const locale = localeOf(doc) ?? GERMAN;
     if (readCredited(row, locale) === null) {
       const button = byGuide(row, GUIDE.infoButton)[0] as HTMLElement | undefined;
-      if (!button) throw new HrworksReadError(`HRworks shows no details button for ${date}.`);
+      if (!button)
+        throw new HrworksReadError(
+          'unexpectedLayout',
+          `HRworks shows no details button for ${date}.`,
+        );
       log(`click details of ${date}`);
       button.click();
       await pause();
@@ -266,7 +359,8 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
       credited = current ? readCredited(current, locale) : null;
       return credited !== null;
     }, `show the details of ${date}`);
-    if (credited === null) throw new HrworksReadError(`No credited hours for ${date}.`);
+    if (credited === null)
+      throw new HrworksReadError('unexpectedText', `No credited hours for ${date}.`);
     return credited;
   }
 
@@ -281,20 +375,30 @@ export async function readHrworksDays(
   options: ReadOptions = {},
 ): Promise<HrworksDay[]> {
   const session = hrworksSession(doc, options);
+  session.log(describePage(doc));
   checkPage(doc);
   const days: HrworksDay[] = [];
+  /** How many rows each week showed, to explain a missing day. */
+  const listed: { title: string; dates: string[]; rows: number }[] = [];
   for (const { year, month } of monthsBetween(from, to)) {
     await session.showMonth(year, month);
     for (const title of readWeeks(doc).map((week) => week.title)) {
       const range = parseWeekTitle(title, year);
-      if (!range) throw new HrworksReadError(`Unexpected week title in HRworks: "${title}".`);
+      if (!range)
+        throw new HrworksReadError(
+          'unexpectedText',
+          `Unexpected week title in HRworks: "${title}".`,
+        );
       if (range.to < from || range.from > to) continue;
 
-      for (const row of await session.openWeek(title)) {
+      const rows = await session.openWeek(title);
+      listed.push({ title, dates: datesBetween(range.from, range.to), rows: rows.length });
+      for (const row of rows) {
         const header = readDayHeader(doc, row);
-        if (!header) throw new HrworksReadError(`Unexpected day in HRworks ${title}.`);
+        if (!header)
+          throw new HrworksReadError('unexpectedText', `Unexpected day in HRworks ${title}.`);
         if (header.date < range.from || header.date > range.to) {
-          throw new HrworksReadError(`HRworks shows ${header.date} under ${title}.`);
+          throw new HrworksReadError('wrongWeek', `HRworks shows ${header.date} under ${title}.`);
         }
         if (header.date < from || header.date > to) continue;
         const creditedMinutes =
@@ -307,6 +411,12 @@ export async function readHrworksDays(
   // A silent gap would look like "nothing in HRworks", so a missing day stops the read.
   const read = new Set(days.map((day) => day.date));
   const missing = datesBetween(from, to).find((date) => !read.has(date));
-  if (missing) throw new HrworksReadError(`HRworks didn't show ${missing}.`);
+  if (missing) {
+    const week = listed.find((candidate) => candidate.dates.includes(missing));
+    const detail = week
+      ? `${week.title} lists ${week.rows} of ${week.dates.length} days.`
+      : 'No week in HRworks covers it.';
+    throw new HrworksReadError('dayMissing', `HRworks didn't show ${missing}. ${detail}`);
+  }
   return days.sort((a, b) => a.date.localeCompare(b.date));
 }

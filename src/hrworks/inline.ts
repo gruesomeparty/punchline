@@ -10,12 +10,12 @@ import { loadWriteLog } from '../plan/write-log.ts';
 import { holdUnchecked, isWritable, runWrites, type WritableDay } from '../plan/write-runner.ts';
 import { confirmWrite } from '../ui/write-confirm.ts';
 import { badgeView } from './badge-view.ts';
+import { errorDetail, errorMessage } from './errors.ts';
 import { INLINE_STYLE } from './inline-style.ts';
 import type { HarvestRowsResponse } from './messages.ts';
 import {
   findRow,
   GUIDE,
-  HrworksReadError,
   type ReadOptions,
   readHrworksDays,
   readSelectedMonth,
@@ -63,6 +63,8 @@ export type InlineOptions = ReadOptions & {
   loadRows: (from: string, to: string) => Promise<HarvestRowsResponse>;
   /** Runs `task` unless punchline is already busy in this tab. Resolves with whether it ran. */
   exclusive: (task: () => Promise<void>) => Promise<boolean>;
+  /** The debug log of the latest run, for the "Copy details" button next to an error. */
+  report?: () => string;
   /** Compares a week as soon as it is opened. On unless a test turns it off. */
   autoCompare?: boolean;
   /** Tests open the shadow roots to look inside. */
@@ -145,6 +147,12 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
   writeAll.hidden = true;
   const status = make(doc, 'span', '', 'status');
   status.setAttribute('role', 'status');
+  // Coworkers report problems from their own machine, so an error offers the steps that led to
+  // it, ready to paste into a message.
+  const copyDetails = make(doc, 'button', 'Copy details', 'secondary');
+  copyDetails.type = 'button';
+  copyDetails.hidden = true;
+  copyDetails.title = 'Copies the steps punchline took in HRworks: dates, times, no token.';
   bar.append(
     mark,
     make(doc, 'strong', 'punchline'),
@@ -153,13 +161,28 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
     writeWeek,
     writeAll,
     status,
+    copyDetails,
   );
   barRoot.append(style, bar);
 
   function showStatus(text: string, kind = ''): void {
     status.textContent = text;
     status.className = `status ${kind}`;
+    copyDetails.hidden = kind !== 'error' || !options.report;
+    copyDetails.textContent = 'Copy details';
   }
+
+  copyDetails.addEventListener('click', () => {
+    const text = options.report?.() ?? '';
+    void navigator.clipboard.writeText(text).then(
+      () => {
+        copyDetails.textContent = 'Copied';
+      },
+      () => {
+        copyDetails.textContent = 'Copy failed';
+      },
+    );
+  });
 
   function remaining(): WritableDay[] {
     return [...planned.values()].filter(
@@ -343,10 +366,8 @@ export function mountInline(doc: Document, options: InlineOptions): Inline {
         updateSummary();
         showStatus('');
       } catch (error) {
-        showStatus(
-          error instanceof HrworksReadError ? error.message : 'Unexpected error reading HRworks.',
-          'error',
-        );
+        options.log?.(`error: ${errorDetail(error)}`);
+        showStatus(errorMessage(error, 'Unexpected error reading HRworks.'), 'error');
       } finally {
         busy = false;
         refreshBadges();
