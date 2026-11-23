@@ -3,7 +3,7 @@
 // HRworks regenerates element ids on every render, so everything here goes through class names
 // and the stable data-guide-id attributes.
 
-import { datesBetween, monthsBetween } from '../lib/time.ts';
+import { datesBetween, isWeekend, monthsBetween } from '../lib/time.ts';
 import type { HrworksDay } from '../plan/plan.ts';
 import { HrworksReadError } from './errors.ts';
 import { GERMAN, type HrworksTexts, LOCALES, localeForMonths } from './locales.ts';
@@ -275,8 +275,11 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     }, `show ${name} ${year}`);
   }
 
-  /** Opens a week of the shown month and returns its day rows once they have loaded. */
-  async function openWeek(title: string): Promise<Element[]> {
+  /**
+   * Opens a week of the shown month and returns its day rows once they have loaded. With
+   * `mayBeEmpty`, a week that never opens reads as no rows instead of an error.
+   */
+  async function openWeek(title: string, { mayBeEmpty = false } = {}): Promise<Element[]> {
     // Look the week up again each time: HRworks may re-render the list after a click.
     const findWeek = () => readWeeks(doc).find((week) => week.title === title);
     if (!findWeek())
@@ -287,7 +290,10 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
     };
     // HRworks sometimes ignores the first click on a week, so a week that stays closed gets
     // clicked again. An open week that is still loading only needs more time.
-    const attempts = 3;
+    // A week of weekend days only can be empty when the account hides days without a work
+    // plan, and HRworks then never opens it. Waiting the full timeout would only delay that.
+    const attempts = mayBeEmpty ? 2 : 3;
+    const wait = mayBeEmpty ? Math.min(3000, timeoutMs / 5) : timeoutMs / attempts;
     for (let attempt = 1; !loaded(); attempt++) {
       const current = findWeek();
       if (current && !current.open) {
@@ -295,10 +301,14 @@ export function hrworksSession(doc: Document, options: ReadOptions = {}) {
         current.head.click();
         await pause();
       }
-      if (await waitFor(loaded, timeoutMs / attempts)) break;
+      if (await waitFor(loaded, wait)) break;
       log(`week "${title}" not loaded yet (attempt ${attempt}, loading=${isLoading(doc)})`);
-      if (attempt === attempts)
-        throw new HrworksReadError('weekNotOpened', `HRworks didn't open ${title} in time.`);
+      if (attempt < attempts) continue;
+      if (mayBeEmpty && !isLoading(doc)) {
+        log(`week "${title}" shows no days, reading them as days off`);
+        return [];
+      }
+      throw new HrworksReadError('weekNotOpened', `HRworks didn't open ${title} in time.`);
     }
     const rows = () => dayRows(findWeek()?.item ?? doc);
     const expected = weekDates(doc, title).length;
@@ -391,7 +401,8 @@ export async function readHrworksDays(
         );
       if (range.to < from || range.from > to) continue;
 
-      const rows = await session.openWeek(title);
+      const weekendOnly = datesBetween(range.from, range.to).every(isWeekend);
+      const rows = await session.openWeek(title, { mayBeEmpty: weekendOnly });
       listed.push({ title, dates: datesBetween(range.from, range.to), rows: rows.length });
       for (const row of rows) {
         const header = readDayHeader(doc, row);
@@ -408,9 +419,15 @@ export async function readHrworksDays(
     }
   }
 
-  // A silent gap would look like "nothing in HRworks", so a missing day stops the read.
+  // Some accounts hide days without a work plan, so a missing Saturday or Sunday is a day off.
+  // Any other gap would look like "nothing in HRworks", so a missing weekday stops the read.
   const read = new Set(days.map((day) => day.date));
-  const missing = datesBetween(from, to).find((date) => !read.has(date));
+  const hidden = datesBetween(from, to).filter((date) => !read.has(date) && isWeekend(date));
+  if (hidden.length > 0) session.log(`not listed, read as days off: ${hidden.join(', ')}`);
+  for (const date of hidden) {
+    days.push({ date, entries: [], absence: '', workday: false, creditedMinutes: null });
+  }
+  const missing = datesBetween(from, to).find((date) => !read.has(date) && !isWeekend(date));
   if (missing) {
     const week = listed.find((candidate) => candidate.dates.includes(missing));
     const detail = week

@@ -17,6 +17,7 @@ import { type HrworksDay, type PlannedDay, planDays } from '../plan/plan.ts';
 import { loadWriteLog } from '../plan/write-log.ts';
 import { holdUnchecked, isWritable, runWrites, type WritableDay } from '../plan/write-runner.ts';
 import { loadSettings, validateSettings } from '../settings/settings.ts';
+import { offerPanelClose } from '../ui/close-panel.ts';
 import { byId, el } from '../ui/dom.ts';
 import { followThemeSetting } from '../ui/theme.ts';
 import { confirmWrite } from '../ui/write-confirm.ts';
@@ -60,6 +61,7 @@ const utc = (date: string) => new Date(`${date}T00:00:00Z`);
 const shortDay = (date: string) => `${weekdays.format(utc(date))} ${Number(date.slice(8))}`;
 
 followThemeSetting();
+void offerPanelClose(byId<HTMLButtonElement>('close-panel'));
 
 const HIDE_KEY = 'punchline.hideMatching';
 try {

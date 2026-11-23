@@ -72,6 +72,18 @@ h1 {
   margin: 0 0 12px;
 }
 
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.page-head h1 {
+  margin: 0;
+}
+
 h2 {
   font-size: 13px;
   font-weight: 600;

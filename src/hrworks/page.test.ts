@@ -106,19 +106,75 @@ describe('readHrworksDays', () => {
 
   it('says how many days the week listed when one is missing, with a code', async () => {
     for (const day of hrworks.weeks()[0]?.days ?? []) {
-      if (day.date >= '2026-07-04') day.hidden = true;
+      if (day.date === '2026-07-03') day.hidden = true;
     }
     hrworks.render();
     const log: string[] = [];
     await expect(
       readHrworksDays(document, '2026-07-01', '2026-07-05', { ...fast, log: (l) => log.push(l) }),
     ).rejects.toThrow(
-      "HRworks didn't show 2026-07-04. KW 27 (01.07. - 05.07.) lists 3 of 5 days. (PL-302)",
+      "HRworks didn't show 2026-07-03. KW 27 (01.07. - 05.07.) lists 4 of 5 days. (PL-302)",
     );
     expect(log[0]).toMatch(/^page lang=.* language=Deutsch month=2026-07 weeks=2 open=1/);
     expect(log).toContain(
-      'week "KW 27 (01.07. - 05.07.)" shows 3 of 5 days: 03.07. 1 entry, 02.07. absence, ' +
-        '01.07. 1 entry',
+      'week "KW 27 (01.07. - 05.07.)" shows 4 of 5 days: 05.07. off, 04.07. off, ' +
+        '02.07. absence, 01.07. 1 entry',
+    );
+  });
+
+  it('reads weekend days that HRworks does not list as days off', async () => {
+    for (const day of hrworks.weeks()[0]?.days ?? []) {
+      if (day.date >= '2026-07-04') day.hidden = true;
+    }
+    hrworks.render();
+    const log: string[] = [];
+    const days = await readHrworksDays(document, '2026-07-03', '2026-07-05', {
+      ...fast,
+      log: (l) => log.push(l),
+    });
+    expect(days.map((day) => [day.date, day.workday, day.entries.length])).toEqual([
+      ['2026-07-03', true, 1],
+      ['2026-07-04', false, 0],
+      ['2026-07-05', false, 0],
+    ]);
+    expect(log).toContain('not listed, read as days off: 2026-07-04, 2026-07-05');
+  });
+
+  it('reads a month that starts with a hidden Sunday-only week (issue #29)', async () => {
+    // November 2026 starts on a Sunday, so HRworks lists a one-day week first.
+    hrworks.data.set('2026-11', [
+      {
+        title: 'KW 44 (01.11. - 01.11.)',
+        open: false,
+        days: [{ date: '2026-11-01', label: 'Kein Arbeitstag nach Arbeitsplan', hidden: true }],
+      },
+      {
+        title: 'KW 45 (02.11. - 08.11.)',
+        open: false,
+        days: [{ date: '2026-11-02', status: ['Keine Arbeitszeit erfasst', ''] }],
+      },
+    ]);
+    const log: string[] = [];
+    const started = Date.now();
+    const days = await readHrworksDays(document, '2026-11-01', '2026-11-02', {
+      timeoutMs: 5000,
+      pauseMs: 0,
+      log: (l) => log.push(l),
+    });
+    expect(days.map((day) => [day.date, day.workday])).toEqual([
+      ['2026-11-01', false],
+      ['2026-11-02', true],
+    ]);
+    expect(log).toContain('week "KW 44 (01.11. - 01.11.)" shows no days, reading them as days off');
+    // Two short tries instead of the full timeout.
+    expect(Date.now() - started).toBeLessThan(4000);
+  });
+
+  it('still stops when a week with workdays never opens', async () => {
+    const week = hrworks.weeks()[1];
+    if (week) for (const day of week.days) day.hidden = true;
+    await expect(readHrworksDays(document, '2026-07-06', '2026-07-06', fast)).rejects.toThrow(
+      /PL-202/,
     );
   });
 

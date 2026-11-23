@@ -323,7 +323,10 @@ export class FakeHrworks {
     } else if (guide === GUIDE.weekHead) {
       const title = target?.querySelector('.m-accordion__item-title')?.textContent?.trim();
       this.later(() => {
-        for (const week of this.weeks()) week.open = week.title === title;
+        // A week without any listed day never opens, as HRworks does for a hidden weekend.
+        for (const week of this.weeks()) {
+          week.open = week.title === title && week.days.some((day) => !day.hidden);
+        }
         const opened = this.weeks().find((week) => week.title === title);
         if (!opened || this.lateDays === 0) return;
         const late = opened.days.slice(-this.lateDays);

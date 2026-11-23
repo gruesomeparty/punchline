@@ -152,11 +152,11 @@ describe('mountInline', () => {
     inline = mount(false, () => 'the steps');
     const writeText = vi.fn(async () => {});
     vi.stubGlobal('navigator', { clipboard: { writeText } });
-    for (const day of hrworks.weeks()[0]?.days ?? []) day.hidden = day.date === '2026-07-04';
+    for (const day of hrworks.weeks()[0]?.days ?? []) day.hidden = day.date === '2026-07-03';
     hrworks.render();
     await inline.check();
     expect(bar()?.querySelector('.status')?.textContent).toBe(
-      "HRworks didn't show 2026-07-04. KW 27 (01.07. - 05.07.) lists 4 of 5 days. (PL-302)",
+      "HRworks didn't show 2026-07-03. KW 27 (01.07. - 05.07.) lists 4 of 5 days. (PL-302)",
     );
     const copy = [...(bar()?.querySelectorAll('button') ?? [])].find(
       (button) => button.textContent === 'Copy details',
